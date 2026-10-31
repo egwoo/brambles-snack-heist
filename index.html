@@ -593,7 +593,7 @@ clearAt(LOOKOUT.x, LOOKOUT.y + 20, 150);
 PATHS.push({ w: 26, pts: [[700, 440], [790, 380], [880, 350]] });
 const SUNSET = { x: 2620, y: 1046 };
 solidRect(SUNSET.x - 28, SUNSET.y - 8, 56, 14, false);
-addSprite({ kind: 'bench', x: SUNSET.x, y: SUNSET.y, sortY: SUNSET.y + 6 });
+addSprite({ kind: 'bench', x: SUNSET.x, y: SUNSET.y, sortY: SUNSET.y + 6, memorial: 1 });
 addSprite({ kind: 'sign', x: SUNSET.x + 74, y: SUNSET.y + 14, text: 'SUNSET POINT', sortY: SUNSET.y + 14 });
 for (const a of [.32, .5, 1.02, 2.1, 2.35, 2.62]) addSprite({ kind: 'reeds', x: LAKE.x + Math.cos(a) * (LAKE.rx - 10), y: LAKE.y + Math.sin(a) * (LAKE.ry - 10), seed: a });
 groundItems.push({ kind: 'canoe', x: 2486, y: 880 }, { kind: 'rowboat', x: 2760, y: 1010 });
@@ -665,14 +665,14 @@ ZONES.push([100, 1990, 740, 2390]);
 
 // Whisper Falls: where the creek takes the long way down. A trail runs out from RV Row to an overlook; mist rises off the
 // plunge pool, and you hear it before you see it. An old stream gauge still stands in the pool.
-PATHS.push({ w: 30, pts: [[2400, 1830], [2462, 1926], [2552, 2000], [2636, 2048]] });
+PATHS.push({ w: 30, pts: [[2440, 1862], [2486, 1936], [2560, 2004], [2636, 2048]] });
 groundItems.push({ kind: 'falls', x: FALLS.x, y: FALLS.y });
 solidRect(2620, FALLS.y - 8, 96, 20, false); solidRect(2794, FALLS.y - 8, 96, 20, false);   // the cliff either side of the lip
 addSprite({ kind: 'overlook', x: 2652, y: 2058, sortY: 2066 }); solidRect(2618, 2066, 68, 8, false);
 addSprite({ kind: 'gauge', x: 2664, y: 2210 }); solidRect(2648, 2190, 32, 22, false);
 for (const [x, y, r] of [[2640, 2140, 14], [2830, 2142, 18], [2812, 2206, 13], [2700, 2232, 11], [2872, 2104, 14]]) { solidCircle(x, y, r); addSprite({ kind: 'rock', x, y, r }); }
 addSprite({ kind: 'sign', x: 2520, y: 1990, text: 'WHISPER FALLS', sortY: 1990 }); clearAt(2520, 1990, 60);
-clearAt(FALLS.x, FALLS.y + 40, 150); clearAt(2652, 2058, 70); vista(2462, 1926, FALLS.x, FALLS.y, 40);
+clearAt(FALLS.x, FALLS.y + 40, 150); clearAt(2652, 2058, 70); vista(2486, 1936, FALLS.x, FALLS.y, 40);
 GLADES.push({ x: 2690, y: 2110, r: 200 });
 BEACONS.push({ x: FALLS.x, y: FALLS.y, name: 'falls mist' });
 
@@ -701,6 +701,15 @@ addSprite({ kind: 'oldfence', x: HOME.x - 10, y: HOME.y + 112, pts: [[-110, 0], 
 clearAt(HOME.x + 40, HOME.y + 30, 160); vista(316, 960, HOME.x, HOME.y - 70, 36);
 GLADES.push({ x: HOME.x + 40, y: HOME.y + 40, r: 190 });
 BEACONS.push({ x: HOME.x, y: HOME.y, name: 'chimney' });
+
+// history: one thing in each place that hints at what happened there
+solidCircle(232, 462, 20); addSprite({ kind: 'clawrock', x: 232, y: 462 }); clearAt(232, 462, 64);            // Bramble's own scratching post by the den
+addTree(772, 300, 'snag', 1.15).burnt = true; clearAt(772, 300, 50);                                        // a fire-scarred snag by the lookout
+addSprite({ kind: 'oldfence', x: 1400, y: 540, pts: [[-70, 0], [-28, 8], [14, 4], [56, 12], [98, 6]], sortY: 546 });   // the orchard's old fence line
+addSprite({ kind: 'menuboard', x: 1284, y: 1606 }); solidRect(1268, 1598, 32, 10, false);                   // the Snack Shack's faded menu
+addSprite({ kind: 'firedial', x: 776, y: 1796 }); solidRect(760, 1790, 32, 10, false);                      // fire danger today, at the ranger station
+solidRect(2582, 1866, 68, 28); addSprite({ kind: 'oldtrailer', x: 2616, y: 1892 }); clearAt(2616, 1880, 80); // a trailer that never left RV Row
+for (const [x, y] of [[2690, 1356], [2714, 1342], [2738, 1332], [2762, 1326]]) addSprite({ kind: 'wetpost', x, y });   // fence posts the beaver pond drowned
 
 // the rest of the beacons: things that already rise above the trees
 BEACONS.push({ x: 880, y: 150, name: 'lookout pennant' }, { x: 1480, y: 980, name: 'campfire smoke' }, { x: 685, y: 1598, name: 'ranger chimney smoke' },
@@ -901,7 +910,7 @@ function findPath(sx, sy, tx, ty) {
   const out = []; let cx = sx, cy = sy, i = 0;
   while (i < pts.length) {
     let j = Math.min(pts.length - 1, i + 26);
-    while (j > i && !walkLine(cx, cy, pts[j].x, pts[j].y)) j--;
+    while (j > i && !(walkLine(cx, cy, pts[j].x, pts[j].y) && clearSeg(cx, cy, pts[j].x, pts[j].y))) j--;   // the grid is coarse; check the real walls and benches too
     out.push(pts[j]); cx = pts[j].x; cy = pts[j].y; i = j + 1;
   }
   return out;
@@ -1166,21 +1175,21 @@ const TYPE_GOALS = {
 };
 // named places: walking into one prints a park-sign title card, and finding a new one earns a shiny
 const AREAS = [
-  { id: 'den', name: 'Bramble’s Den', sub: 'Home, sweet moss', x: 340, y: 400, r: 210 },
+  { id: 'den', name: 'Bramble’s Den', sub: 'Home, sweet moss', x: 340, y: 400, r: 210 , tint: ['pine', .14] },
   { id: 'lookout', name: 'Fire Lookout', sub: 'Climb up to scout the campground', x: 880, y: 340, r: 160, far: 1, shot: [70, -60] },
-  { id: 'meadow', name: 'Apple Meadow', sub: 'The orchard on the north slope', x: 1580, y: 380, r: 300 },
+  { id: 'meadow', name: 'Apple Meadow', sub: 'The orchard on the north slope', x: 1580, y: 380, r: 300 , tint: ['sun', .1] },
   { id: 'camp', name: 'Pinewhistle Campground', sub: 'Tents, coolers and the campfire', x: 1460, y: 930, r: 400 },
   { id: 'shack', name: 'Snack Shack', sub: 'Open 8 am to 8 pm', x: 1150, y: 1540, r: 190 },
   { id: 'ranger', name: 'Ranger Station', sub: 'Home of Ranger Oakes', x: 610, y: 1740, r: 210 },
-  { id: 'sunset', name: 'Sunset Point', sub: 'The dock, the beach and the canoes', x: 2500, y: 1000, r: 200, far: 1 },
+  { id: 'sunset', name: 'Sunset Point', sub: 'The dock, the beach and the canoes', x: 2500, y: 1000, r: 200, far: 1 , tint: ['water', .08] },
   { id: 'amphi', name: 'Amphitheater', sub: 'Evening program nightly at 7', x: 2330, y: 1270, r: 170, far: 1 },
-  { id: 'rv', name: 'RV Row', sub: 'Ron’s grill and June’s pie', x: 2300, y: 1730, r: 250 },
-  { id: 'pond', name: 'Beaver Pond', sub: 'On Whisper Creek', x: 2850, y: 1430, r: 240, far: 1 },
-  { id: 'mill', name: 'Old Mill', sub: 'Abandoned logging camp', x: 400, y: 2180, r: 300, far: 1 },
+  { id: 'rv', name: 'RV Row', sub: 'Ron’s grill and June’s pie', x: 2300, y: 1730, r: 250 , tint: ['sun', .07] },
+  { id: 'pond', name: 'Beaver Pond', sub: 'On Whisper Creek', x: 2850, y: 1430, r: 240, far: 1 , tint: ['water', .12] },
+  { id: 'mill', name: 'Old Mill', sub: 'Abandoned logging camp', x: 400, y: 2180, r: 300, far: 1 , tint: ['rust', .09] },
   { id: 'arch', name: 'Park Entrance', sub: 'Pinewhistle Lake, est. 1923', x: 1560, y: 2060, r: 150, far: 1 },
-  { id: 'falls', name: 'Whisper Falls', sub: 'Where the creek takes the long way down', x: 2730, y: 2130, r: 190, far: 1, shot: [-100, -50] },
-  { id: 'shore', name: 'Heron Rookery', sub: 'Quiet on the north shore', x: 2780, y: 200, r: 180, far: 1, shot: [-260, -70] },
-  { id: 'homestead', name: 'Old Homestead', sub: 'Somebody lived here once', x: 350, y: 1160, r: 180, far: 1, shot: [-40, 90] },
+  { id: 'falls', name: 'Whisper Falls', sub: 'Where the creek takes the long way down', x: 2730, y: 2130, r: 190, far: 1, shot: [-100, -50] , tint: ['deep', .13] },
+  { id: 'shore', name: 'Heron Rookery', sub: 'Quiet on the north shore', x: 2780, y: 200, r: 180, far: 1, shot: [-260, -70] , tint: ['water', .09] },
+  { id: 'homestead', name: 'Old Homestead', sub: 'Somebody lived here once', x: 350, y: 1160, r: 180, far: 1, shot: [-40, 90] , tint: ['pine', .14] },
 ];
 let areaNow = null, card = null;
 function updateArea() {
@@ -1785,7 +1794,20 @@ const MUSIC = {
   night: { bpm: 64, prog: [[57, 1], [53, 0], [48, 0], [55, 0]], scale: [69, 72, 74, 76, 79, 81, 84] },
   chase: { bpm: 140, prog: [[50, 1], [50, 1], [46, 0], [48, 0]], scale: [62, 65, 67, 69, 72] },
 };
-const MUS = { next: 0, step: 0, mode: 'day', mel: 3 };
+const MUS = { next: 0, step: 0, mode: 'day', mel: 3, aw: {} };
+// each of these places brings in its own instrument as you get near, over whatever the day or night music is playing
+const AREA_TUNES = { den: 'hum', pond: 'drops', mill: 'banjo', falls: 'pad' };
+function areaLayer(t, s, bar, root, ch, scale) {
+  for (const id in AREA_TUNES) {
+    const a = AREAS.find(q => q.id === id), want = S.mode === 'play' ? clamp(1.25 - dist(P.x, P.y, a.x, a.y) / a.r, 0, 1) : 0;
+    const w = MUS.aw[id] = (MUS.aw[id] || 0) + (want - (MUS.aw[id] || 0)) * .12; if (w < .03) continue;
+    const kind = AREA_TUNES[id];
+    if (kind === 'hum' && s === 0) { mtone(midiHz(root - 24), t, 2.6, 'sine', .1 * w); mtone(midiHz(root - 17), t + .05, 2.4, 'sine', .05 * w); }              // the den: a low, warm hum
+    else if (kind === 'drops' && s % 2 === 1 && Math.random() < .45) bell(scale[Math.floor(Math.random() * scale.length)] + 12, t, .05 * w, .45);   // the pond: drips like water off a paddle
+    else if (kind === 'banjo' && (s === 0 || s === 1 || s === 2 || s === 4 || s === 5)) pluck(root + 24 + ch[[0, 1, 2, 0, 0, 2, 1, 0][s]], t, .11 * w, .45);   // the mill: a slow banjo roll
+    else if (kind === 'pad' && s === 0 && bar % 2 === 0) for (const [iv, v] of [[12, .045], [19, .03], [24 + ch[1] % 12, .022]]) mtone(midiHz(root + iv), t, 4.2, 'triangle', v * w);   // the falls: an airy pad
+  }
+}
 function wantedMusic() {
   if (S.mode === 'title') return 'day';
   if (npcs.some(n => n.mode === 'chase')) return 'chase';
@@ -1830,6 +1852,7 @@ function playStep(t, spec) {
     if (s === 0 || s === 4) pluck(root - 12 + (s === 4 ? 7 : 0), t, .36, 0);
     if (bar % 8 < 6 && Math.random() < (s % 2 ? .12 : .26)) melody(t, spec, 'pluck');
   }
+  areaLayer(t, s, bar, root, ch, spec.scale);
   if (m === 'tense') {
     if (s % 2 === 0) mtone(midiHz(root - 24), t, .45, 'triangle', .16);
     mnoise(t, .02, .05, 6500, 3);
@@ -2148,6 +2171,13 @@ function drawGround(x0, y0, x1, y1) {
     c.restore();
   }
   for (const g of groundItems) { if (g.x < x0 - 140 || g.x > x1 + 140 || g.y < y0 - 80 || g.y > y1 + 80) continue; GROUND[g.kind](c, g); }
+  // each place has its own tint inside the palette: cool by the water, warm in the meadow, rusty round the mill
+  for (const a of AREAS) {
+    if (!a.tint) continue; const R = a.r * 1.35;
+    if (a.x + R < x0 || a.x - R > x1 || a.y + R < y0 || a.y - R > y1) continue;
+    const g = c.createRadialGradient(a.x, a.y, a.r * .25, a.x, a.y, R); g.addColorStop(0, kA(a.tint[0], a.tint[1])); g.addColorStop(1, kA(a.tint[0], 0));
+    c.fillStyle = g; c.fillRect(a.x - R, a.y - R, R * 2, R * 2);
+  }
   for (const p of conePiles) for (let i = 0; i < p.n; i++) drawCone(c, p.x - 10 + i * 9, p.y + (i % 2) * 3, .3 + i);
 }
 function drawLake(c) {
@@ -2270,6 +2300,11 @@ function drawSnag(c, t, s, sw, lit) {
   seg(c, x + sw, top + 38 * s, x + 20 * s + sw, top + 20 * s); seg(c, x + sw, top + 56 * s, x - 18 * s + sw, top + 40 * s);
   c.lineWidth = 2 * s; seg(c, x + 13 * s + sw, top + 26 * s, x + 17 * s + sw, top + 34 * s); seg(c, x - 11 * s + sw, top + 46 * s, x - 15 * s + sw, top + 52 * s);
   c.strokeStyle = K.stoneD; c.lineWidth = 1; seg(c, x - 2 * s, t.y - 6 * s, x - 1 * s + sw, top + 40 * s); seg(c, x + 3 * s, t.y - 20 * s, x + 2 * s + sw, top + 50 * s);
+  if (t.burnt) {   // fire-scarred: charred black from the roots up, the way an old burn stays on a snag
+    c.fillStyle = kA('ink', .8); c.beginPath(); c.moveTo(x - 7 * s, t.y + 1); c.lineTo(x + 7 * s, t.y + 1); c.lineTo(x + 5.6 * s, t.y - 36 * s); c.lineTo(x + 2.4 * s, t.y - 27 * s);
+    c.lineTo(x - .6 * s, t.y - 46 * s); c.lineTo(x - 3.6 * s, t.y - 31 * s); c.lineTo(x - 6.4 * s, t.y - 40 * s); c.closePath(); c.fill();
+    c.fillStyle = kA('paper', .22); for (let i = 0; i < 5; i++) c.fillRect(x - 5 * s + (i % 3) * 3.4 * s, t.y - 8 * s - i * 6 * s, 2.4 * s, 1.1);
+  }
   if (t.nest) {   // a heron rookery: a stick nest in the top fork, and usually somebody home
     const nx = x + sw, ny = top + 8 * s;
     ell(c, nx + 1.4, ny + 2, 13 * s, 5 * s, K.ink); ell(c, nx, ny, 13 * s, 5 * s, K.bark);
@@ -2331,6 +2366,8 @@ function drawTable(c, o) {
   c.fillStyle = K.bark; c.fillRect(x - 50, y - 34, 100, 8); c.fillRect(x - 50, y + 22, 100, 8);
   keyed(c, () => rrect(c, x - 55, y - 20, 110, 32, 3), K.earth);
   c.strokeStyle = K.bark; c.lineWidth = 1.4; for (let i = -1; i <= 1; i++) seg(c, x - 55, y - 4 + i * 9, x + 55, y - 4 + i * 9);
+  c.strokeStyle = K.mix('earth', 'bark', .55); c.lineWidth = 1; c.beginPath(); c.moveTo(x + 34, y - 6); c.bezierCurveTo(x + 30, y - 11, x + 25, y - 6, x + 34, y + 1); c.bezierCurveTo(x + 43, y - 6, x + 38, y - 11, x + 34, y - 6); c.stroke();   // somebody's initials in a heart, carved summers ago
+  seg(c, x + 29, y - 4, x + 31, y - 1); seg(c, x + 36, y - 4, x + 38, y - 2);
   c.fillStyle = K.bark; c.fillRect(x - 46, y + 12, 6, 10); c.fillRect(x + 40, y + 12, 6, 10);
   if (o.loot.avail(S.hour) && o.loot.stocks.watermelon > 0) {
     keyed(c, () => rrect(c, x - 16, y - 22, 32, 20, 4), K.mix('earth', 'bark', .35));
@@ -2844,6 +2881,7 @@ function drawBench(c, o) {
   keyed(c, () => rrect(c, x - 28, y - 12, 56, 9, 2), K.earth, K.ink, 1.4);
   keyed(c, () => rrect(c, x - 28, y - 27, 56, 8, 2), K.earth, K.ink, 1.4);
   c.strokeStyle = K.mix('earth', 'bark', .4); c.lineWidth = 1; seg(c, x - 26, y - 23, x + 26, y - 23); seg(c, x - 26, y - 8, x + 26, y - 8);
+  if (o.memorial) { keyed(c, () => rrect(c, x - 8, y - 26, 16, 6, 1), K.sun, K.ink, .9); c.fillStyle = K.mix('sun', 'ink', .5); c.fillRect(x - 5, y - 24, 10, 1); c.fillRect(x - 4, y - 22.4, 8, .8); }   // "For Ada, who loved this view"
 }
 function drawReeds(c, o) {
   for (let i = 0; i < 7; i++) {
@@ -3409,6 +3447,55 @@ function drawMinimap() {
   c.restore();
   c.strokeStyle = DAYK.ink; c.lineWidth = 3; c.strokeRect(x, y, mw, mh);
 }
+// history props
+function drawClawrock(c, o) {
+  const x = o.x, y = o.y;
+  shadow(c, x + 5, y + 6, 26, 9);
+  keyed(c, () => { c.beginPath(); c.ellipse(x, y - 10, 24, 18, 0, 0, TAU); }, K.stone, K.ink, 1.6);
+  ell(c, x - 8, y - 18, 11, 6, K.mix('paper', 'ink', .28)); blobs(c, [[x + 12, y - 22, 6], [x + 18, y - 16, 5]], K.mossD);
+  c.strokeStyle = K.mix('paper', 'ink', .65); c.lineWidth = 2; c.lineCap = 'round';   // three long claw marks, and a tally of winters
+  for (let i = 0; i < 3; i++) seg(c, x - 14 + i * 6, y - 22 + i * 1.5, x - 4 + i * 6, y - 2 + i);
+  c.lineWidth = 1.4; for (let i = 0; i < 5; i++) seg(c, x + 6 + i * 3.2, y - 8, x + 6 + i * 3.2, y - 1); seg(c, x + 4, y - 2, x + 20, y - 7);
+}
+function drawMenuboard(c, o) {
+  const x = o.x, y = o.y, faded = K.mix('paper', 'sun', .15);
+  shadow(c, x + 3, y + 2, 18, 5);
+  c.fillStyle = K.bark; c.fillRect(x - 13, y - 30, 3, 30); c.fillRect(x + 10, y - 30, 3, 30);
+  keyed(c, () => rrect(c, x - 16, y - 46, 32, 30, 2), faded, K.ink, 1.4);
+  fillRR(c, x - 13, y - 44, 26, 6, 1, K.mix('rust', 'paper', .35));
+  c.fillStyle = K.mix('paper', 'ink', .45); for (let i = 0; i < 4; i++) { c.fillRect(x - 12, y - 35 + i * 4.4, 14 - (i % 2) * 4, 1.6); c.fillRect(x + 6, y - 35 + i * 4.4, 6, 1.6); }
+  c.save(); c.translate(x + 9, y - 22); c.rotate(.5); fillRR(c, -3, -2, 6, 4, 1, faded); c.restore();   // one price tag hanging by a nail
+}
+function drawFiredial(c, o) {
+  const x = o.x, y = o.y, cy = y - 34, risk = .78;   // fire danger: high, as it always is by late summer
+  shadow(c, x + 3, y + 2, 20, 5);
+  c.fillStyle = K.bark; c.fillRect(x - 14, y - 26, 4, 26); c.fillRect(x + 10, y - 26, 4, 26);
+  keyed(c, () => rrect(c, x - 20, y - 54, 40, 30, 3), K.paper, K.ink, 1.5);
+  ['leaf', 'sun', 'rust', 'ink'].forEach((ink, i) => { c.beginPath(); c.moveTo(x, cy); c.arc(x, cy, 15, Math.PI + i * Math.PI / 4, Math.PI + (i + 1) * Math.PI / 4); c.closePath(); c.fillStyle = K[ink]; c.fill(); });
+  circ(c, x, cy, 4, K.paper);
+  const a = Math.PI + risk * Math.PI + Math.sin(time * .8) * .02;
+  c.strokeStyle = K.ink; c.lineWidth = 2; seg(c, x, cy, x + Math.cos(a) * 13, cy + Math.sin(a) * 13); circ(c, x, cy, 2, K.ink);
+  fillRR(c, x - 15, y - 31, 30, 5, 1, K.pine);
+}
+function drawOldtrailer(c, o) {
+  const x = o.x, y = o.y, paint = K.mix('water', 'paper', .45), rust = K.mix('rust', 'bark', .3);
+  shadow(c, x + 6, y + 2, 44, 9);
+  keyed(c, () => { c.beginPath(); c.moveTo(x - 38, y - 6); c.lineTo(x - 38, y - 30); c.quadraticCurveTo(x - 36, y - 46, x - 14, y - 46); c.lineTo(x + 26, y - 46); c.quadraticCurveTo(x + 40, y - 44, x + 40, y - 28); c.lineTo(x + 40, y - 6); c.closePath(); }, paint, K.ink, 1.8);
+  c.fillStyle = K.mix('paper', 'ink', .1); c.fillRect(x - 38, y - 22, 78, 5);
+  for (const [rx, ry, r] of [[-30, -12, 7], [28, -36, 6], [6, -10, 9], [-10, -40, 4]]) ell(c, x + rx, y + ry, r, r * .7, rust);   // rust coming through
+  keyed(c, () => rrect(c, x - 26, y - 40, 18, 12, 4), K.mix('deep', 'ink', .4), K.ink, 1.2);
+  c.strokeStyle = K.ink; c.lineWidth = 1.2; seg(c, x - 25, y - 34, x - 13, y - 39);   // a cracked window
+  keyed(c, () => rrect(c, x + 10, y - 38, 12, 28, 2), K.mix('paper', 'ink', .2), K.ink, 1.2);
+  c.fillStyle = K.ink; ell(c, x - 6, y - 4, 9, 5.6, K.ink); ell(c, x - 6, y - 3, 8, 3.4, K.stoneD);   // a flat tire
+  c.strokeStyle = K.bark; c.lineWidth = 2; seg(c, x + 40, y - 10, x + 54, y - 6); c.fillStyle = K.bark; c.fillRect(x + 50, y - 8, 4, 8);
+  for (let i = 0; i < 7; i++) leaf(c, x - 40 + i * 13 + hash2(i, 3) * 6, y - 2, 6, 2.4, -HALF + (hash2(i, 5) - .5), i % 2 ? K.moss : K.leafM);   // grass grown up round it
+}
+function drawWetpost(c, o) {
+  const x = o.x, y = o.y, wood = K.mix('paper', 'ink', .5);
+  c.strokeStyle = kA('paper', .5); c.lineWidth = 1.2; const r = (time * .35 + x * .02) % 1; c.beginPath(); c.ellipse(x, y, 6 + r * 9, 2 + r * 3, 0, 0, TAU); c.stroke();
+  keyed(c, () => rrect(c, x - 2.6, y - 16 - (x % 3) * 2, 5.2, 16 + (x % 3) * 2, 1), wood, K.ink, 1.1);
+  if (x < 2750) { c.strokeStyle = kA('ink', .5); c.lineWidth = .8; c.beginPath(); c.moveTo(x, y - 10); c.quadraticCurveTo(x + 12, y - 4, x + 24, y - 12); c.stroke(); }   // a strand of wire, sagging into the water
+}
 // Whisper Falls, drawn into the ground layer over the creek: the plunge pool, the cliff face and the falling water
 GROUND.falls = (c, g) => {
   const x = g.x, y = g.y, Q = PLUNGE;
@@ -3575,7 +3662,7 @@ function drawBeacons(c, x0, y0, x1, y1) {
     c.lineWidth = 3.2; ['rust', 'sun', 'leaf', 'water'].forEach((ink, i) => { c.strokeStyle = kA(ink, k.toFixed(3)); c.beginPath(); c.arc(FALLS.x - 6, PLUNGE.y + 6, 74 - i * 3.4, Math.PI * 1.08, Math.PI * 1.62); c.stroke(); });
   }
 }
-const DRAW = { tree: drawTree, bush: drawBush, berry: drawBerry, tent: drawTent, cooler: drawCooler, table: drawTable, fire: drawFire, mallow: drawMallow, shack: drawShack, crates: drawCrates, trash: drawTrash, cabin: drawCabin, donuts: drawDonuts, rv: drawRV, grill: drawGrill, pietable: drawPieTable, chair: drawChair, bucket: drawBucket, den: drawDen, sign: drawSign, magpie: drawMagpie, rock: drawRock, lamp: drawLamp, npc: drawHuman, player: drawPlayer, proj: drawProj, bird: drawBird, arch: drawArch, lookout: drawLookout, bench: drawBench, reeds: drawReeds, outhouse: drawOuthouse, woodpile: drawWoodpile, mapboard: drawMapboard, stump: drawStump, trailmix: drawTrailmix, deadfall: drawDeadfall, hollowlog: drawHollowLog, blind: drawBlind, plank: drawPlank, lodge: drawLodge, screen: drawScreen, logbench: drawLogbench, cookies: drawCookies, projector: drawProjector, mill: drawMill, logdeck: drawLogdeck, truck: drawTruck, overlook: drawOverlook, gauge: drawGauge, chimney: drawChimney, stove: drawStove, oldfence: drawOldfence, wader: drawWader };
+const DRAW = { tree: drawTree, bush: drawBush, berry: drawBerry, tent: drawTent, cooler: drawCooler, table: drawTable, fire: drawFire, mallow: drawMallow, shack: drawShack, crates: drawCrates, trash: drawTrash, cabin: drawCabin, donuts: drawDonuts, rv: drawRV, grill: drawGrill, pietable: drawPieTable, chair: drawChair, bucket: drawBucket, den: drawDen, sign: drawSign, magpie: drawMagpie, rock: drawRock, lamp: drawLamp, npc: drawHuman, player: drawPlayer, proj: drawProj, bird: drawBird, arch: drawArch, lookout: drawLookout, bench: drawBench, reeds: drawReeds, outhouse: drawOuthouse, woodpile: drawWoodpile, mapboard: drawMapboard, stump: drawStump, trailmix: drawTrailmix, deadfall: drawDeadfall, hollowlog: drawHollowLog, blind: drawBlind, plank: drawPlank, lodge: drawLodge, screen: drawScreen, logbench: drawLogbench, cookies: drawCookies, projector: drawProjector, mill: drawMill, logdeck: drawLogdeck, truck: drawTruck, overlook: drawOverlook, gauge: drawGauge, clawrock: drawClawrock, menuboard: drawMenuboard, firedial: drawFiredial, oldtrailer: drawOldtrailer, wetpost: drawWetpost, chimney: drawChimney, stove: drawStove, oldfence: drawOldfence, wader: drawWader };
 const drawList = [];
 function worldXform(c) { c.setTransform(DPR * Z, 0, 0, DPR * Z, -view.x * DPR * Z, -view.y * DPR * Z); }
 function drawBird(c, b) {
@@ -4296,6 +4383,8 @@ function runTest() {
     go(id, dx = 0, dy = 70) { const a = AREAS.find(q => q.id === id) || { x: id, y: dx }; const f = nearestFree(cellOf(a.x + (a.x === id ? 0 : dx)), rowOf(a.y + (a.x === id ? 0 : dy))); P.x = f[0] * CELL + 16; P.y = f[1] * CELL + 16; P.goal = null; updateCamera(0, true); },
     hour(h) { S.hour = h; dark = darkAt(h); placeNPCs(); },
     blind(on = true) { TEST.blind = on; },
+    audio() { initAudio(); return AC ? AC.state : 'none'; },
+    music: MUS,
     // run the game for `sec` seconds at a fixed 30 fps, holding `held` keys (e.g. 'a', 'shift', ' '), then draw one frame;
     // works even when the page is in the background and animation frames are paused
     step(sec, held = []) { for (const k of held) keys[k] = true; for (let i = 0; i < Math.round(sec * 30); i++) { const dt = 1 / 30; time += dt; if (S.mode === 'play') update(dt); updateFX(dt); updateCamera(dt, false); } for (const k of held) keys[k] = false; render(); return { x: Math.round(P.x), y: Math.round(P.y), hour: +S.hour.toFixed(2) }; },

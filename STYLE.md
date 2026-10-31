@@ -53,20 +53,22 @@ Each place has its own tint inside the palette, one beacon you can see from far 
 
 | Area | Tint | Beacon | History prop | Instrument |
 | --- | --- | --- | --- | --- |
-| Bramble's Den | deep moss | – | Claw-scratched boulder | low hum |
-| Fire Lookout | – | Pennant on the cab | Fire-scarred snag | – |
-| Apple Meadow | warm leaf | – | Old fence line | – |
-| Campground | – | Campfire smoke at night | Initials carved in a picnic table | – |
+| Bramble's Den | pine | – | Claw-scratched boulder with a tally | low hum |
+| Fire Lookout | – | Long pennant on the cab | Fire-scarred snag | – |
+| Apple Meadow | sun | – | Old fence line | – |
+| Campground | – | Campfire smoke at night | Initials in a heart on the picnic tables | – |
 | Snack Shack | – | – | Faded menu board | – |
 | Ranger Station | – | Chimney smoke | Fire danger dial | – |
-| Sunset Point | water | – | Memorial bench plaque | – |
+| Sunset Point | water | – | Memorial plaque on the bench | – |
 | Amphitheater | – | Projector beam at showtime | – | – |
 | RV Row | sun | Grill smoke | Abandoned rusty trailer | – |
-| Beaver Pond | cool water | Fireflies at dusk | Drowned fence posts | water-drop bells |
-| Old Mill | rust | Swallows round the stack | The mill itself | slow banjo |
-| Whisper Falls | deep, mossy | Mist plume | Old gauging station | airy pad |
-| North Shore | water | Herons over the rookery | – | – |
-| West Woods | pine | Homestead chimney | Cabin ruin | – |
+| Beaver Pond | water | Fireflies at dusk | Drowned fence posts | water-drop bells |
+| Old Mill | rust | Swallows round the stack | The mill itself | slow banjo roll |
+| Whisper Falls | deep | Mist plume, rainbow on bright days, the roar | Old stream gauge | airy pad |
+| Heron Rookery | water | Herons on nests and circling | Drowned snags | – |
+| Old Homestead | pine | The lone chimney; swifts at dusk | Stone foundation and stove | – |
+
+Tints live on each entry in `AREAS` (`tint: [ink, alpha]`, alpha around .07–.14) and are painted over the ground only, never over characters. Area instruments are in `AREA_TUNES`.
 
 ## Checklist for anything new
 
