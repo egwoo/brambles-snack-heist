@@ -233,7 +233,7 @@ body.touch #toasts{top:auto;bottom:300px}
     </div>
   </div>
 
-  <div id="titleScreen" class="overlay title-screen">
+  <div id="titleScreen" class="overlay title-screen" hidden>
     <div class="title-wrap">
       <div id="posterBox" class="poster">
         <canvas id="poster" aria-hidden="true"></canvas>
@@ -4055,7 +4055,7 @@ function continueGame(d) {
   applySave(d); restock(); spawnShinies(); if (!S.craving) pickCraving(); placeNPCs();
   beginPlay(false);
 }
-function beginPlay(fresh, px, py) {
+function beginPlay(fresh, px, py, quiet) {
   initAudio(); refreshSoundLabels();
   $('#titleScreen').hidden = true; hud.hidden = false;
   if (isTouch) { $('#touch').hidden = false; document.body.classList.add('touch'); }
@@ -4063,7 +4063,7 @@ function beginPlay(fresh, px, py) {
   S.mode = 'play'; updateCamera(0, true);
   for (const k in hudCache) delete hudCache[k];
   tutT = fresh ? 0 : 99;
-  if (!fresh) toast(`Day ${S.day}. Welcome back, Bramble.`, 'good');
+  if (!fresh && !quiet) toast(`Day ${S.day}. Welcome back, Bramble.`, 'good');
 }
 function tutorial(dt) {
   if (tutT > 30) return;
@@ -4264,6 +4264,7 @@ function posterLoop() {
 }
 addEventListener('resize', () => { if (S.mode === 'title') sizePoster(); });
 function showTitle() {
+  $('#titleScreen').hidden = false;   // it starts hidden, so a page that resumes play never flashes it
   S.mode = 'title'; S.hour = 10.5; dark = darkAt(S.hour);
   restock(); spawnShinies(); placeNPCs();
   const saved = loadSave();
@@ -4559,12 +4560,22 @@ function runTest() {
 }
 
 // ---------- boot ----------
+// A reload in the middle of play (a new version going live, the viewer re-opening the page) drops you straight back where
+// you were, for as long as this browser tab stays open. A fresh visit still starts at the title.
+const SESSION_KEY = 'bramble-session';
+function keepSession() { if (TEST || S.mode === 'title') return; try { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ save: snapshot(), px: P.x, py: P.y })); } catch (e) { /* storage unavailable */ } }
+function takeSession() { if (TEST) return null; try { const s = sessionStorage.getItem(SESSION_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+addEventListener('pagehide', keepSession);
+document.addEventListener('visibilitychange', () => { if (document.hidden) keepSession(); });
+// browsers only start sound after a click or key press, so a resumed game wakes its audio on the first one
+for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => { if (AC && AC.state === 'suspended') AC.resume(); }, true);
 function start(data) {
   resize(); buildIcons(); buildTextures(); drawSky(8);
   if (TEST) { runTest(); return; }
-  const saved = data && data.save;
-  if (saved && data.playing) { applySave(saved); restock(); spawnShinies(); if (!S.craving) pickCraving(); placeNPCs(); beginPlay(false, data.px, data.py); }
+  const sess = !(data && data.save) && takeSession(), saved = (data && data.save) || (sess && sess.save);
+  if (saved && (data.playing || sess)) { applySave(saved); restock(); spawnShinies(); if (!S.craving) pickCraving(); placeNPCs(); beginPlay(false, sess ? sess.px : data.px, sess ? sess.py : data.py, !!sess); }
   else showTitle();
+  setInterval(keepSession, 4000);
   requestAnimationFrame(t => { last = t; requestAnimationFrame(frame); });
 }
 const hot = window.claude && window.claude.hot;
