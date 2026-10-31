@@ -292,6 +292,9 @@ const SNACKS = {
   chips:       { name: 'Potato Chips',        belly: 15, hint: 'Crates stack up behind the Snack Shack while it’s open.' },
   donut:       { name: 'Glazed Donut',        belly: 20, hint: 'The ranger keeps a pink box on the cabin porch.' },
   pizza:       { name: 'Cold Pizza',          belly: 20, hint: 'Trash cans hide leftovers. The lids are loud.' },
+  trailmix:    { name: 'Trail Mix',           belly: 14, hint: 'Priya snacks on trail mix in the bird blind at Beaver Pond, 1 to 4 pm.' },
+  cookie:      { name: 'Ranger Cookie',       belly: 18, hint: 'A cookie tray comes out for the evening program at the amphitheater, 6:30 to 8:30 pm.' },
+  honey:       { name: 'Wild Honeycomb',      belly: 30, hint: 'Bees keep a hive in a dead tree at the Old Mill. It takes a while to pry loose.' },
 };
 const ORDER = Object.keys(SNACKS);
 
@@ -362,6 +365,23 @@ const SNACK_DRAW = {
     const q = SKC; tri(c, -12, -9, 12, -9, 0, 14, q.sun); fillRR(c, -13.5, -13, 27, 5.5, 2.7, q.earth);
     circ(c, -4, -4, 2.8, q.rust); circ(c, 4, -3, 2.6, q.rust); circ(c, 0, 4, 2.3, q.rust);
   },
+  trailmix(c) {
+    const q = SKC;
+    for (const [x, y, col] of [[-6, -9, q.bark], [-1, -12, q.rust], [4, -9, q.sun], [8, -11, q.water], [1, -8, q.paper], [-5, -13, q.earth]]) circ(c, x, y, 3.3, col);
+    c.beginPath(); c.moveTo(-10, -7); c.lineTo(10, -7); c.lineTo(12, 13); c.lineTo(-12, 13); c.closePath(); c.fillStyle = q.earth; c.fill();
+    c.fillStyle = q.mix('earth', 'bark', .35); c.fillRect(-10, -7, 20, 3); fillRR(c, -6.5, 0, 13, 8, 2, q.paper); circ(c, 0, 4, 2.2, q.moss);
+  },
+  cookie(c) {
+    const q = SKC; circ(c, 0, 1, 12.5, q.earth); circ(c, -1.2, -.4, 10.6, q.mix('earth', 'sun', .35));
+    for (const [x, y] of [[-5, -4], [3, -6], [5, 3], [-3, 5], [0, -.5], [-7, 1]]) ell(c, x, y, 2.1, 1.7, q.bark);
+  },
+  honey(c) {
+    const q = SKC, hex = (x, y, r, col) => { c.beginPath(); for (let i = 0; i < 6; i++) { const a = i / 6 * TAU + Math.PI / 6; i ? c.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r) : c.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r); } c.closePath(); c.fillStyle = col; c.fill(); };
+    const cells = [[-6, -8], [6, -8], [0, 2], [-12, 2], [12, 2], [-6, 12], [6, 12]];
+    for (const [x, y] of cells) hex(x, y, 7.4, q.sun);
+    for (const [x, y] of cells) hex(x, y, 4.6, q.mix('sun', 'rust', .35));
+    ell(c, 9, 17, 2.4, 4, q.sun); circ(c, -8, -10, 1.8, q.paper);
+  },
 };
 function drawSnack(c, type, x, y, s) { c.save(); c.translate(x, y); c.scale(s, s); SNACK_DRAW[type](c); c.restore(); }
 const ICON = {}, ICON_DIM = {};
@@ -385,7 +405,21 @@ const LAKE = { x: 2600, y: 560, rx: 560, ry: 400 };
 const DOCK = { x: 2405, y: 690, w: 50, h: 275 };
 function inLake(x, y, shrink) { const dx = (x - LAKE.x) / (LAKE.rx - shrink), dy = (y - LAKE.y) / (LAKE.ry - shrink); return dx * dx + dy * dy < 1; }
 function onDock(x, y) { return x >= DOCK.x + 5 && x <= DOCK.x + DOCK.w - 5 && y >= DOCK.y && y <= DOCK.y + DOCK.h + 20; }
-function waterBlocked(x, y) { return inLake(x, y, 8) && !onDock(x, y); }
+// Whisper Creek leaves the lake's south shore, pools behind a beaver dam, then runs off the south edge of the map
+const CREEK = [[2800, 926], [2822, 1010], [2836, 1110], [2806, 1215], [2790, 1322]];
+const CREEK2 = [[2830, 1530], [2774, 1640], [2794, 1760], [2750, 1900], [2774, 2040], [2724, 2200], [2756, 2320], [2736, 2440]];
+const POND = [[2830, 1420, 142, 96], [2752, 1372, 84, 62], [2912, 1458, 88, 70]];
+const BRIDGE = { x: 2834, y: 1100 }, DAM = { x: 2830, y: 1518 };
+function inPond(x, y, shrink) { for (const [px, py, rx, ry] of POND) { const dx = (x - px) / (rx - shrink), dy = (y - py) / (ry - shrink); if (dx * dx + dy * dy < 1) return true; } return false; }
+function creekDist(x, y) {
+  let d = 1e9;
+  for (const L of [CREEK, CREEK2]) for (let i = 0; i < L.length - 1; i++) d = Math.min(d, segDist(x, y, L[i][0], L[i][1], L[i + 1][0], L[i + 1][1]));
+  return d;
+}
+const onBridge = (x, y) => Math.abs(x - BRIDGE.x) < 46 && Math.abs(y - BRIDGE.y) < 17;
+const onDam = (x, y) => Math.abs(x - DAM.x) < 66 && Math.abs(y - DAM.y) < 17;
+const inCreek = (x, y) => creekDist(x, y) < 17 && !onBridge(x, y) && !onDam(x, y) && !inLake(x, y, 0);
+function waterBlocked(x, y) { return (inLake(x, y, 8) && !onDock(x, y)) || (inPond(x, y, 6) && !onDam(x, y)); }
 
 const PATHS = [
   { w: 56, pts: [[1560, 2440], [1560, 1900], [1510, 1480], [1480, 1060]] },
@@ -559,6 +593,62 @@ solidRect(1562, 1442, 40, 12, false);
 addSprite({ kind: 'mapboard', x: 1582, y: 1452, sortY: 1452 });
 addTree(2050, 800, 'round', 1.7).swing = true;
 
+// Whisper Creek country: a footbridge, the beaver pond, and the bird blind where Priya spends her afternoons
+PATHS.push({ w: 28, pts: [[2600, 1068], [2720, 1094], [2834, 1100], [2940, 1160], [3010, 1262], [3046, 1390], [3030, 1494], [2960, 1548], [2886, 1550]] });
+PATHS.push({ w: 28, pts: [[2560, 1716], [2640, 1626], [2704, 1562], [2766, 1544]] });
+groundItems.push({ kind: 'bridge', x: BRIDGE.x, y: BRIDGE.y }, { kind: 'dam', x: DAM.x, y: DAM.y });
+addSprite({ kind: 'lodge', x: 2884, y: 1398, sortY: 1398 });
+for (const [x, y] of [[2706, 1394], [2766, 1446], [2934, 1428], [2852, 1352], [2808, 1478], [2960, 1478]]) groundItems.push({ kind: 'lily', x, y });
+for (const [x, y] of [[2668, 1352], [2706, 1314], [2992, 1432], [2968, 1506], [2902, 1336], [2742, 1300]]) addSprite({ kind: 'reeds', x, y, seed: x * .013 });
+const BLIND = { x: 2690, y: 1498 };
+solidRect(BLIND.x - 50, BLIND.y - 10, 100, 12, false);
+addSprite({ kind: 'blind', x: BLIND.x, y: BLIND.y, sortY: BLIND.y + 2 });
+addSprite({ kind: 'plank', x: BLIND.x - 6, y: BLIND.y + 24, sortY: BLIND.y + 24 });
+solidCircle(BLIND.x + 54, BLIND.y + 40, 10, false);
+const trailmix = addLoot({ label: 'trail mix', x: BLIND.x + 54, y: BLIND.y + 40, r: 46, types: { trailmix: 2 }, need: 1.1, noise: 'soft', clear: 30, avail: h => h >= 13 && h < 16, closed: 'Priya only brings her trail mix to the bird blind, 1 to 4 pm.' });
+addSprite({ kind: 'trailmix', x: BLIND.x + 54, y: BLIND.y + 40, sortY: BLIND.y + 44, loot: trailmix });
+addSprite({ kind: 'sign', x: 2676, y: 1712, text: 'BEAVER POND', sortY: 1712 }); clearAt(2676, 1712, 60);
+clearAt(BLIND.x, BLIND.y + 20, 90);
+
+// amphitheater: Ranger Oakes's evening program draws a crowd from 6:30 to 8 pm
+const AMPHI = { x: 2330, y: 1170 };
+PATHS.push({ w: 30, pts: [[2200, 992], [2212, 1090], [2234, 1186], [2296, 1214]] });
+GLADES.push({ x: 2330, y: 1270, r: 250 });
+groundItems.push({ kind: 'stage', x: AMPHI.x, y: AMPHI.y });
+solidRect(AMPHI.x - 58, AMPHI.y - 36, 116, 10);
+addSprite({ kind: 'screen', x: AMPHI.x, y: AMPHI.y - 26, sortY: AMPHI.y - 26, tall: 160 });
+const SEATS = [[2265, 1252], [2395, 1252], [2255, 1312], [2405, 1312], [2245, 1372], [2415, 1372]];
+for (const [x, y] of SEATS) { solidRect(x - 38, y - 6, 76, 6, false); addSprite({ kind: 'logbench', x, y, sortY: y + 2 }); }
+solidRect(AMPHI.x + 94, AMPHI.y + 4, 52, 12, false);
+const cookies = addLoot({ label: 'cookie tray', x: AMPHI.x + 120, y: AMPHI.y + 12, r: 50, types: { cookie: 3 }, need: 1.1, noise: 'soft', avail: h => h >= 18.5 && h < 20.5, closed: 'Cookies only come out for the evening program, 6:30 to 8:30 pm.' });
+addSprite({ kind: 'cookies', x: AMPHI.x + 120, y: AMPHI.y + 12, sortY: AMPHI.y + 18, loot: cookies });
+solidCircle(AMPHI.x, AMPHI.y + 252, 8, false);
+addSprite({ kind: 'projector', x: AMPHI.x, y: AMPHI.y + 252 });
+addSprite({ kind: 'sign', x: 2140, y: 1066, text: 'AMPHITHEATER', sortY: 1066 }); clearAt(2140, 1066, 60);
+lights.push({ x: AMPHI.x, y: AMPHI.y - 50, r: 220, on: h => h >= 18.5 && h < 20.5, warm: '255,236,190' });
+ZONES.push([2186, 1050, 2490, 1440]);
+
+// the old mill: an abandoned logging camp at the end of the haul road
+const MILL = { x: 330, y: 2080 };
+PATHS.push({ w: 44, rut: 1, pts: [[720, 1862], [650, 1960], [540, 2050], [430, 2116], [300, 2186], [170, 2214]] });
+solidRect(MILL.x - 86, MILL.y - 60, 172, 60);
+addSprite({ kind: 'mill', x: MILL.x, y: MILL.y, tall: 190 });
+addSprite({ kind: 'sign', x: 668, y: 1934, text: 'OLD MILL', sortY: 1934 }); clearAt(668, 1934, 60);
+solidRect(518, 2200, 88, 36);
+addSprite({ kind: 'logdeck', x: 562, y: 2236 });
+solidRect(150, 2262, 128, 40);
+addSprite({ kind: 'truck', x: 214, y: 2302 });
+const BEE = { x: 150, y: 2070 };
+const beeTree = addTree(BEE.x, BEE.y, 'snag', 1.3);
+beeTree.loot = addLoot({ label: 'bee tree', x: BEE.x + 4, y: BEE.y + 28, r: 50, types: { honey: 1 }, need: 2.2, noise: 'none', emptyMsg: 'The bees have no honeycomb left to spare today.' });
+beeTree.hive = true;
+const hollow = { kind: 'hollowlog', log: 1, x: 456, y: 2318, r: 38, seed: .4, rustle: 0, sortY: 2318 };
+bushes.push(hollow); addSprite(hollow); clearAt(hollow.x, hollow.y, 80);
+for (const [x, y, s] of [[380, 2240, 1], [262, 2160, 1.1], [612, 2128, .9], [600, 2334, 1.2], [680, 2270, 1], [340, 2370, .9], [116, 2180, 1], [470, 2186, .8]]) { solidCircle(x, y, 9 * s, false); addSprite({ kind: 'stump', x, y, s }); }
+for (const [x, y] of [[296, 2112], [404, 2100], [236, 2116]]) groundItems.push({ kind: 'sawdust', x, y });
+GLADES.push({ x: 410, y: 2200, r: 320 });
+ZONES.push([100, 1990, 740, 2390]);
+
 // hiding bushes
 for (const [x, y] of [[1235, 845], [1500, 765], [1770, 760], [1015, 960], [1620, 1170], [1965, 1040], [1400, 1360], [1840, 1300], [2300, 1012], [2560, 1045], [1330, 1440], [975, 1440], [2040, 1640], [2040, 1855], [2400, 1835], [2625, 1640], [830, 1655], [440, 1885], [1600, 470], [1250, 470], [1920, 560], [1080, 1250], [1530, 1840]]) {
   const b = { kind: 'bush', x, y, r: 34, seed: hash2(x, y), rustle: 0, sortY: y + 6 };
@@ -570,13 +660,14 @@ for (const [x, y] of [[1235, 845], [1500, 765], [1770, 760], [1015, 960], [1620,
 for (const [x, y] of [[1730, 728], [2430, 990], [560, 1856], [2412, 1790], [1150, 1398], [1480, 1092], [2072, 1795], [1290, 1180]]) { twigs.push({ x, y, cd: 0 }); groundItems.push({ kind: 'twig', x, y }); }
 for (const [x, y, r] of [[880, 1120, 20], [2720, 1270, 24], [330, 1640, 18], [1880, 1990, 22], [980, 420, 16], [2980, 1520, 20], [2140, 1200, 18]]) { solidCircle(x, y, r); addSprite({ kind: 'rock', x, y, r }); clearAt(x, y, 50); }
 
-const SHINY_SPOTS = [[1300, 790], [1560, 705], [1720, 850], [1450, 1085], [1880, 1200], [1150, 985], [1350, 1320], [2000, 950], [2350, 985], [2600, 1080], [2480, 995], [1160, 1400], [1270, 1650], [2180, 1710], [2500, 1800], [2300, 1490], [660, 1880], [850, 1760], [1500, 1650], [1700, 1850], [1400, 420], [1700, 330], [1950, 480], [720, 900], [300, 1150], [900, 1210], [2800, 1150], [2440, 860], [1100, 600], [1810, 1420], [2160, 1820], [470, 1760]];
+const SHINY_SPOTS = [[300, 2150], [480, 2230], [640, 2310], [220, 2200], [2700, 1580], [2990, 1566], [3070, 1200], [2330, 1330], [2470, 1236], [2920, 1130], [1300, 790], [1560, 705], [1720, 850], [1450, 1085], [1880, 1200], [1150, 985], [1350, 1320], [2000, 950], [2350, 985], [2600, 1080], [2480, 995], [1160, 1400], [1270, 1650], [2180, 1710], [2500, 1800], [2300, 1490], [660, 1880], [850, 1760], [1500, 1650], [1700, 1850], [1400, 420], [1700, 330], [1950, 480], [720, 900], [300, 1150], [900, 1210], [2800, 1150], [2440, 860], [1100, 600], [1810, 1420], [2160, 1820], [470, 1760]];
 
 // forest
 function treeOK(x, y) {
   for (const z of ZONES) if (x > z[0] && x < z[2] && y > z[1] && y < z[3]) return false;
   if (inLake(x, y, -90)) return false;
   if (nearPath(x, y, 34)) return false;
+  if (inPond(x, y, -60) || creekDist(x, y) < 44) return false;
   for (const k of keepClear) if ((x - k.x) ** 2 + (y - k.y) ** 2 < k.r * k.r) return false;
   return true;
 }
@@ -584,6 +675,7 @@ function grove(x, y) {
   const gx = x / 520, gy = y / 520, ix = Math.floor(gx), iy = Math.floor(gy), fx = gx - ix, fy = gy - iy, sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
   return lerp(lerp(hash2(ix, iy), hash2(ix + 1, iy), sx), lerp(hash2(ix, iy + 1), hash2(ix + 1, iy + 1), sx), sy);
 }
+const KC0 = keepClear.length;
 (function growForest() {
   const R = rng(20261030);
   const tr = sprites.filter(s => s.kind === 'tree');
@@ -593,7 +685,42 @@ function grove(x, y) {
     let ok = true;
     for (const t of tr) { const dx = t.x - x, dy = t.y - y; if (dx * dx + dy * dy < 4096) { ok = false; break; } }
     if (!ok) continue;
-    tr.push(addTree(x, y, grove(x, y) + (R() - .5) * .35 > .48 ? 'pine' : 'round', .85 + R() * .4));
+    // birches crowd the damp ground along Whisper Creek, the south woods are old growth, and now and then a dead snag
+    const r = R(), wet = creekDist(x, y) < 300 || inPond(x, y, -200), old = y > 1960 && x > 760 && x < 2620;
+    const type = wet && r < .6 ? 'birch' : r > .975 ? 'snag' : grove(x, y) + (R() - .5) * .35 > .48 ? 'pine' : 'round';
+    tr.push(addTree(x, y, type, (.85 + R() * .4) * (old && type === 'round' ? 1.22 : 1)));
+  }
+  // a wall of woods past the south edge, seen when the touch camera scrolls past the map to clear the on-screen controls
+  for (let row = 0; row < 5; row++) for (let x = -20 + row * 29; x < W + 40; x += 58) {
+    const y = H + 26 + row * 76 + hash2(x | 0, row) * 40;
+    addSprite({ kind: 'tree', type: hash2(x | 0, row + 5) > .45 ? 'pine' : 'round', x: x + hash2(row, x | 0) * 24, y, s: .95 + hash2(x | 0, row + 9) * .4, sortY: y });
+  }
+})();
+// forest floor: deadfall, stumps, ferns and mushrooms, so the woods between landmarks aren't all alike
+(function dressForest() {
+  const R = rng(4242), trees = sprites.filter(s => s.kind === 'tree'), placed = [];
+  const free = (x, y, pad) => {
+    for (const z of ZONES) if (x > z[0] - pad && x < z[2] + pad && y > z[1] - pad && y < z[3] + pad) return false;
+    if (inLake(x, y, -70) || inPond(x, y, -40) || creekDist(x, y) < 34 + pad || nearPath(x, y, 14 + pad)) return false;
+    for (let i = 0; i < KC0; i++) { const k = keepClear[i]; if ((x - k.x) ** 2 + (y - k.y) ** 2 < k.r * k.r) return false; }
+    for (const t of trees) if (Math.abs(t.x - x) < 50 + pad && Math.abs(t.y - y) < 50 + pad && (t.x - x) ** 2 + (t.y - y) ** 2 < (24 + pad) ** 2) return false;
+    for (const q of placed) if ((q.x - x) ** 2 + (q.y - y) ** 2 < (q.r + pad) ** 2) return false;
+    return true;
+  };
+  for (let i = 0, n = 0; i < 1200 && n < 24; i++) {
+    const x = 80 + R() * (W - 160), y = 80 + R() * (H - 160), len = 64 + R() * 40, a = (R() - .5) * .5;
+    if (!free(x - len * .4, y, 16) || !free(x, y, 16) || !free(x + len * .4, y, 16)) continue;
+    solidRect(x - len / 2, y - 8, len, 16, false); addSprite({ kind: 'deadfall', x, y, len, a, sortY: y + 6 }); placed.push({ x, y, r: len * .6 }); n++;
+  }
+  for (let i = 0, n = 0; i < 1200 && n < 36; i++) {
+    const x = 60 + R() * (W - 120), y = 60 + R() * (H - 120);
+    if (!free(x, y, 10)) continue;
+    const s = .8 + R() * .5; solidCircle(x, y, 9 * s, false); addSprite({ kind: 'stump', x, y, s }); placed.push({ x, y, r: 16 }); n++;
+  }
+  for (let i = 0, n = 0; i < 2600 && n < 170; i++) {
+    const x = 40 + R() * (W - 80), y = 40 + R() * (H - 80), k = R();
+    if (!free(x, y, -8)) continue;
+    groundItems.push(k < .75 ? { kind: 'fern', x, y, s: .8 + R() * .5 } : { kind: 'shroom', x, y, v: R() < .4 }); n++;
   }
 })();
 
@@ -755,10 +882,17 @@ const CHATTER = {
   Ron: ['Who wants a hot dog?', 'Perfect grill marks.', 'Nobody touches my spatula.'],
   June: ['Just one more chapter.', 'That pie smells divine.', 'Oh, what a twist!'],
   Sal: ['Snacks! Get your snacks!', 'Chips, sodas, s’more kits!', 'Slow day.'],
-  'Ranger Oakes': ['Pack it in, pack it out.', 'Keep your food stored, folks.', 'Quiet hours start at ten.'],
+  'Ranger Oakes': ['Pack it in, pack it out.', 'Keep your food stored, folks.', 'Quiet hours start at ten.', 'Evening program at seven, folks!'],
+};
+// lines for the evening program: the ranger talks, the audience reacts
+const TALK = {
+  'Ranger Oakes': ['Folks, this is a black bear.', 'Latch those coolers, please.', 'And this… is our mystery visitor.', 'Mostly moss, we think.', 'Questions? Yes, Milo?', 'Never feed the wildlife.', 'It has antlers. Probably.'],
+  Milo: ['Is it real?!', 'I saw it! I SAW it!', 'Can we go find it?'],
+  Bev: ['Ooh.', 'How fascinating.', 'I never miss the slideshow.'],
+  June: ['Is that… a shrub?', 'Oh my.'],
 };
 function say(n, kind, force) {
-  const pool = kind === 'chat' ? CHATTER[n.name] : (BARK_BY[n.name] && BARK_BY[n.name][kind]) || BARKS[kind];
+  const pool = kind === 'chat' ? (n.task && n.task.talk && TALK[n.name]) || CHATTER[n.name] : (BARK_BY[n.name] && BARK_BY[n.name][kind]) || BARKS[kind];
   if (!pool || (!force && n.say && time - n.say.t < 1.4)) return;
   const busy = new Set(npcs.filter(m => m !== n && m.say && time - m.say.t < m.say.dur).map(m => m.say.text));
   const fresh = pool.filter(l => !busy.has(l) && (!n.say || l !== n.say.text));
@@ -775,8 +909,8 @@ mkNPC('Dale', { shirt: 'sun', pattern: 'plaid', rolled: 1, pants: 'deep', skin: 
 ]);
 mkNPC('Priya', { shirt: 'water', pattern: 'zip', pants: 'earth', skin: 'skinD', hair: 'ink', hairDo: 'braid', prop: 'binoculars', w: 16 }, {}, [
   { from: 7, to: 10, ...post(1760, 1164, -HALF, { sit: 1, glances: [-1.1, 1.1, 2.6] }) },
-  { from: 10, to: 13, kind: 'wander', pts: CAMP, pause: [2, 5] },
-  { from: 13, to: 16, ...post(2250, 938, -HALF, { sit: 1, glances: [-1.3, 1.3, Math.PI], every: [4, 8] }) },
+  { from: 10, to: 12, kind: 'wander', pts: CAMP, pause: [2, 5] },
+  { from: 12, to: 16, ...post(BLIND.x - 6, BLIND.y + 30, -HALF, { sit: 1, range: 220, glances: [-1, 1, 2.2, -2.4], every: [4, 8], hold: [1.4, 2.4] }) },
   { from: 16, to: 19, ...post(1760, 1164, -HALF, { sit: 1, glances: [-1.1, 1.1, 2.6] }) },
   { from: 19, to: 23.5, ...post(1560, 984, Math.PI, { sit: 1, range: 165, glances: [-.7, .7, -1.3] }) },
   { from: 23.5, to: 7, kind: 'sleep', tent: 'T3' },
@@ -785,11 +919,15 @@ mkNPC('Bev', { shirt: 'rust', pattern: 'cardigan', pants: 'bark', skin: 'skinL',
   { from: 8, to: 11, ...post(1760, 1076, HALF, { sit: 1, glances: [-1.1, 1.1, -2.6] }) },
   { from: 11, to: 15, kind: 'wander', pts: [...CAMP, ...MEADOW], pause: [3, 6] },
   { from: 15, to: 18, ...post(1912, 846, 2.3, { sit: 1, glances: [-1, .9, -2] }) },
-  { from: 18, to: 22, ...post(1760, 1076, HALF, { sit: 1, glances: [-1.1, 1.1, -2.6] }) },
+  { from: 18, to: 18.5, ...post(1760, 1076, HALF, { sit: 1, glances: [-1.1, 1.1, -2.6] }) },
+  { from: 18.5, to: 20, ...post(SEATS[0][0], SEATS[0][1] + 12, -HALF, { sit: 1, talk: 1, range: 150, glances: [-.8, .8, Math.PI], every: [5, 9], hold: [1.2, 2] }) },
+  { from: 20, to: 22, ...post(1760, 1076, HALF, { sit: 1, glances: [-1.1, 1.1, -2.6] }) },
   { from: 22, to: 8, kind: 'sleep', tent: 'T4' },
 ]);
 mkNPC('Milo', { shirt: 'paper', pattern: 'stripe', pants: 'water', shorts: 1, skin: 'skinL', hair: 'bark', hairDo: 'short', hat: 'beanie', prop: 'net', pack: 'sun', w: 15 }, { size: .78, speed: 96, chase: 150, range: 160, half: .82, giveUp: 1.6 }, [
-  { from: 8, to: 20.5, kind: 'wander', pts: [...CAMP, ...MEADOW, ...BEACH], pause: [1, 3] },
+  { from: 8, to: 18.5, kind: 'wander', pts: [...CAMP, ...MEADOW, ...BEACH, [2700, 1120], [2620, 1640]], pause: [1, 3] },
+  { from: 18.5, to: 20, ...post(SEATS[2][0], SEATS[2][1] + 12, -HALF, { sit: 1, talk: 1, range: 150, glances: [-.8, .8, Math.PI], every: [5, 9], hold: [1.2, 2] }) },
+  { from: 20, to: 20.5, kind: 'wander', pts: CAMP, pause: [1, 3] },
   { from: 20.5, to: 8, kind: 'sleep', tent: 'T2' },
 ]);
 mkNPC('Gus', { shirt: 'moss', pants: 'deep', waders: 1, vest: 'earth', skin: 'skinD', hair: 'stone', hairDo: 'short', beard: 1, hat: 'bucket', w: 21, belly: 2 }, { speed: 60 }, [
@@ -808,7 +946,8 @@ mkNPC('Ron', { shirt: 'rust', pants: 'ink', apron: 1, skin: 'skinD', hair: 'bark
 mkNPC('June', { shirt: 'leaf', dress: 1, skin: 'skinL', hair: 'earth', hairDo: 'long', glasses: 'shades', hat: 'sunhat', w: 16 }, { speed: 56 }, [
   { from: 7, to: 10, kind: 'gone', x: 2330, y: 1690 },
   { from: 10, to: 16, ...post(2532, 1743, Math.PI, { sit: 1, reading: 1, glances: [0, -.35, .35, 0], every: [4, 7], hold: [1.6, 2.6] }) },
-  { from: 16, to: 20, kind: 'wander', pts: [...RVZONE, [1500, 1650], [1650, 1350]], pause: [3, 6] },
+  { from: 16, to: 18.5, kind: 'wander', pts: [...RVZONE, [1500, 1650], [1650, 1350], [2620, 1640]], pause: [3, 6] },
+  { from: 18.5, to: 20, ...post(SEATS[1][0], SEATS[1][1] + 12, -HALF, { sit: 1, talk: 1, range: 150, glances: [-.8, .8, Math.PI], every: [5, 9], hold: [1.2, 2] }) },
   { from: 20, to: 7, kind: 'gone', x: 2330, y: 1690 },
 ]);
 mkNPC('Sal', { shirt: 'paper', pattern: 'stripeV', pants: 'ink', skin: 'skinD', hair: 'ink', hairDo: 'short', hat: 'papercap', bowtie: 1, w: 18 }, {}, [
@@ -818,16 +957,20 @@ mkNPC('Sal', { shirt: 'paper', pattern: 'stripeV', pants: 'ink', skin: 'skinD', 
 mkNPC('Ranger Oakes', { shirt: 'earth', pattern: 'ranger', pants: 'pine', belt: 1, skin: 'skinL', hair: 'bark', hairDo: 'short', mustache: 1, hat: 'ranger', prop: 'radio', w: 20 }, { speed: 80, chase: 160, range: 230, half: .6, giveUp: 3, flashlight: 1 }, [
   { from: 7, to: 12, kind: 'patrol', pts: RANGER_ROUTE, pause: [1.5, 3.5] },
   { from: 12, to: 13, ...post(598, 1815, Math.PI, { sit: 1, glances: [-1.2, 1.2, -HALF] }) },
-  { from: 13, to: 2, kind: 'patrol', pts: RANGER_ROUTE, pause: [1.5, 3.5] },
+  { from: 13, to: 18, kind: 'patrol', pts: RANGER_ROUTE, pause: [1.5, 3.5] },
+  { from: 18, to: 20, ...post(AMPHI.x, AMPHI.y + 2, HALF, { talk: 2, glances: [-.9, .9, -.45, .45], every: [2.5, 5], hold: [1.4, 2.6] }) },
+  { from: 20, to: 2, kind: 'patrol', pts: RANGER_ROUTE, pause: [1.5, 3.5] },
   { from: 2, to: 7, kind: 'gone', x: 650, y: 1800 },
 ]);
+const RANGER = npcs.find(n => n.name === 'Ranger Oakes');
+const programOn = () => !!(RANGER.task && RANGER.task.talk && RANGER.arrived && RANGER.mode === 'routine' && !RANGER.inside);
 
 // ---------- state ----------
 const SAVE_KEY = 'bramble-snack-heist-v1';
 const S = {
   mode: 'title', day: 1, hour: 8, belly: 75, shinies: 2, pinecones: 0, pouch: [], pantry: {}, journal: {}, upgrades: {},
   craving: null, cravingDone: false, stats: { swiped: 0, shooed: 0 }, feastSeen: false, hints: {},
-  dayStats: { swiped: 0, spotted: 0, shinies: 0, stashed: 0, decoys: 0, types: {} }, vol: { music: .7, sfx: .9 }, goals: null, tut: 0, weather: 'clear',
+  dayStats: { swiped: 0, spotted: 0, shinies: 0, stashed: 0, decoys: 0, types: {} }, vol: { music: .7, sfx: .9 }, goals: null, tut: 0, weather: 'clear', found: {},
 };
 const raining = () => S.weather === 'rain';
 const hush = () => (S.upgrades.soft ? .5 : 1) * (raining() ? .6 : 1);
@@ -847,7 +990,7 @@ function warmAt(h) { return Math.max(0, 1 - Math.abs(h - 18.9) / 1.5) * .16 + Ma
 
 function snapshot() {
   return { day: S.day, hour: S.hour, belly: S.belly, shinies: S.shinies, pinecones: S.pinecones, pouch: S.pouch.slice(), pantry: S.pantry, journal: S.journal,
-    upgrades: S.upgrades, craving: S.craving, cravingDone: S.cravingDone, stats: S.stats, feastSeen: S.feastSeen, hints: S.hints, muted, vol: S.vol, dayStats: S.dayStats, goals: S.goals, tut: S.tut, weather: S.weather };
+    upgrades: S.upgrades, craving: S.craving, cravingDone: S.cravingDone, stats: S.stats, feastSeen: S.feastSeen, hints: S.hints, muted, vol: S.vol, dayStats: S.dayStats, goals: S.goals, tut: S.tut, weather: S.weather, found: S.found };
 }
 function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot())); } catch (e) { /* storage unavailable */ } }
 function loadSave() { try { const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
@@ -858,7 +1001,7 @@ function applySave(d) {
   muted = !!d.muted;
   if (d.vol) S.vol = { music: clamp(+d.vol.music || 0, 0, 1), sfx: clamp(+d.vol.sfx || 0, 0, 1) };
   S.dayStats = Object.assign(freshDayStats(), d.dayStats || {});
-  S.goals = Array.isArray(d.goals) ? d.goals : null; S.tut = typeof d.tut === 'number' ? d.tut : 99; S.weather = d.weather === 'rain' ? 'rain' : 'clear';
+  S.goals = Array.isArray(d.goals) ? d.goals : null; S.tut = typeof d.tut === 'number' ? d.tut : 99; S.weather = d.weather === 'rain' ? 'rain' : 'clear'; S.found = d.found || {};
   if (S.hour >= 2 && S.hour < 6) S.hour = 7;
 }
 
@@ -880,7 +1023,7 @@ function pickCraving() {
   const pool = ORDER.filter(k => k !== 'berries' && k !== 'apple' && k !== S.craving);
   S.craving = pick(pool); S.cravingDone = false;
 }
-const freshDayStats = () => ({ swiped: 0, spotted: 0, shinies: 0, stashed: 0, decoys: 0, types: {} });
+const freshDayStats = () => ({ swiped: 0, spotted: 0, shinies: 0, stashed: 0, decoys: 0, types: {}, visited: {} });
 function newDay() {
   S.day++; S.hour = 7; S.belly = Math.max(20, S.belly - 20); S.dayStats = freshDayStats();
   S.weather = S.day >= 3 && S.weather !== 'rain' && Math.random() < .3 ? 'rain' : 'clear';
@@ -899,13 +1042,41 @@ const TYPE_GOALS = {
   hotdog: 'Snatch a hot dog off Ron’s grill', fish: 'Steal a trout from Gus’s bucket', pie: 'Swipe June’s blueberry pie', chips: 'Raid the Snack Shack crates',
   donut: 'Pinch a donut from the ranger’s porch', pizza: 'Dig cold pizza out of a trash can', watermelon: 'Grab watermelon from a picnic basket',
   burger: 'Snag a cheeseburger at dinnertime', marshmallow: 'Take a marshmallow from the campfire after dark',
+  trailmix: 'Pinch Priya’s trail mix at the bird blind', cookie: 'Grab a cookie during the evening program', honey: 'Rob the bee tree at the Old Mill',
 };
+// named places: walking into one prints a park-sign title card, and finding a new one earns a shiny
+const AREAS = [
+  { id: 'den', name: 'Bramble’s Den', sub: 'Home, sweet moss', x: 340, y: 400, r: 210 },
+  { id: 'lookout', name: 'Fire Lookout', sub: 'Climb up to scout the campground', x: 880, y: 340, r: 160, far: 1 },
+  { id: 'meadow', name: 'Apple Meadow', sub: 'The orchard on the north slope', x: 1580, y: 380, r: 300 },
+  { id: 'camp', name: 'Pinewhistle Campground', sub: 'Tents, coolers and the campfire', x: 1460, y: 930, r: 400 },
+  { id: 'shack', name: 'Snack Shack', sub: 'Open 8 am to 8 pm', x: 1150, y: 1540, r: 190 },
+  { id: 'ranger', name: 'Ranger Station', sub: 'Home of Ranger Oakes', x: 610, y: 1740, r: 210 },
+  { id: 'sunset', name: 'Sunset Point', sub: 'The dock, the beach and the canoes', x: 2500, y: 1000, r: 200, far: 1 },
+  { id: 'amphi', name: 'Amphitheater', sub: 'Evening program nightly at 7', x: 2330, y: 1270, r: 170, far: 1 },
+  { id: 'rv', name: 'RV Row', sub: 'Ron’s grill and June’s pie', x: 2300, y: 1730, r: 250 },
+  { id: 'pond', name: 'Beaver Pond', sub: 'On Whisper Creek', x: 2850, y: 1430, r: 240, far: 1 },
+  { id: 'mill', name: 'Old Mill', sub: 'Abandoned logging camp', x: 400, y: 2180, r: 300, far: 1 },
+  { id: 'arch', name: 'Park Entrance', sub: 'Pinewhistle Lake, est. 1923', x: 1560, y: 2060, r: 150, far: 1 },
+];
+let areaNow = null, card = null;
+function updateArea() {
+  let best = null, bd = 1;
+  for (const a of AREAS) { const d = dist(P.x, P.y, a.x, a.y) / a.r; if (d < bd) { bd = d; best = a; } }
+  if (best === areaNow) return;
+  areaNow = best; if (!best) return;
+  S.dayStats.visited[best.id] = 1;
+  const fresh = !S.found[best.id];
+  if (fresh) { S.found[best.id] = 1; if (best.id !== 'den') { S.shinies++; floater(P.x, P.y - 50, '+1 shiny', 'sun'); SFX.discover(); } }
+  if (fresh || time - (best.shown ?? -99) > 60) { best.shown = time; card = { a: best, t: time, fresh: fresh && best.id !== 'den' }; }
+}
 const GOAL_KINDS = {
   swipe: { make: () => { const n = 4 + Math.floor(Math.random() * 3); return { text: `Swipe ${n} snacks`, need: n, reward: 2 }; }, prog: () => S.dayStats.swiped },
   shiny: { make: () => ({ text: 'Find 3 shinies', need: 3, reward: 2 }), prog: () => S.dayStats.shinies },
   type: { make: () => { const t = pick(Object.keys(TYPE_GOALS).filter(k => k !== S.craving)); return { text: TYPE_GOALS[t], type: t, need: 1, reward: 3 }; }, prog: g => S.dayStats.types[g.type] || 0 },
   decoy: { make: () => ({ text: 'Distract someone with a pinecone', need: 1, reward: 2 }), prog: () => S.dayStats.decoys },
   ghost: { make: () => ({ text: 'Stash 3 snacks without being spotted today', need: 3, reward: 4 }), prog: () => S.dayStats.spotted ? 0 : S.dayStats.stashed },
+  visit: { make: () => { const two = AREAS.filter(a => a.far).sort(() => Math.random() - .5).slice(0, 2); return { text: `Visit ${two[0].name} and ${two[1].name}`, ids: two.map(a => a.id), need: 2, reward: 2 }; }, prog: g => (g.ids || []).filter(id => S.dayStats.visited && S.dayStats.visited[id]).length },
 };
 function makeGoals() {
   const kinds = Object.keys(GOAL_KINDS).sort(() => Math.random() - .5).slice(0, 2);
@@ -1091,7 +1262,7 @@ function updateNPC(n, dt) {
   } else { n.lost += dt; if (n.mode !== 'chase') n.alert = Math.max(0, n.alert - .28 * dt); }
   if (n.mode !== 'chase' && n.alert >= 1) startChase(n);
   else if (seen && n.alert >= .33 && (n.mode === 'routine' || n.mode === 'investigate')) { n.mode = 'suspicious'; n.susT = 0; n.sitting = false; n.popT = time; SFX.huh(); say(n, 'sus', true); hint('seen'); }
-  if (n.mode === 'routine' && n.arrived && n.coneOn && !n.inside) { n.chatT -= dt; if (n.chatT <= 0) { n.chatT = rand(9, 20); if (dist(n.x, n.y, P.x, P.y) < 520 || S.mode === 'title') say(n, 'chat'); } }
+  if (n.mode === 'routine' && n.arrived && n.coneOn && !n.inside) { n.chatT -= dt; if (n.chatT <= 0) { n.chatT = n.task.talk === 2 ? rand(3.5, 6) : n.task.talk ? rand(8, 15) : rand(9, 20); if (dist(n.x, n.y, P.x, P.y) < 520 || S.mode === 'title') say(n, 'chat'); } }
   switch (n.mode) {
     case 'routine': routine(n, dt); break;
     case 'suspicious':
@@ -1121,11 +1292,13 @@ function makeNoise(x, y, r, ring) {
 // ---------- player ----------
 const keys = {}, joy = { x: 0, y: 0 };
 let tipLock = false, touchGrab = false;
-const rings = [], projs = [], parts = [];
+const rings = [], projs = [], parts = [], wades = [];
 function lootType(o) { return o.typeAt ? o.typeAt(S.hour) : o.first; }
 function surfaceAt(x, y) {
   if (onDock(x, y) && inLake(x, y, -4)) return 'wood';
   if (x > 480 && x < 740 && y > 1776 && y < 1836) return 'wood';
+  if (onBridge(x, y) || onDam(x, y) || (Math.abs(x - AMPHI.x) < 72 && y > AMPHI.y - 26 && y < AMPHI.y + 18)) return 'wood';
+  if (inCreek(x, y)) return 'water';
   if (inLake(x, y, -46)) return 'sand';
   if (nearPath(x, y, -4)) return 'dirt';
   return 'grass';
@@ -1186,7 +1359,7 @@ function arriveAt(o) {
 function pickInteract(wx, wy) {
   let best = null, bd = 1e9;
   for (const o of interact) {
-    const d = Math.min(dist(wx, wy, o.x, o.y), dist(wx, wy + 22, o.x, o.y), o.kind === 'loot' && o.label === 'apple tree' ? dist(wx, wy + 70, o.x, o.y) : 1e9);
+    const d = Math.min(dist(wx, wy, o.x, o.y), dist(wx, wy + 22, o.x, o.y), o.kind === 'loot' && (o.label === 'apple tree' || o.label === 'bee tree') ? dist(wx, wy + 70, o.x, o.y) : 1e9);
     if (d < Math.max(34, o.r * .8) && d < bd) { best = o; bd = d; }
   }
   return best;
@@ -1240,6 +1413,8 @@ function updatePlayer(dt) {
   if (mag > 0 && P.rum) P.rum = null;
   let sp = P.tiptoe ? 74 * (S.upgrades.soft ? 1.15 : 1) : 152 * (S.upgrades.legs ? 1.15 : 1);
   if (S.belly <= 0) sp *= .65;
+  const wading = inCreek(P.x, P.y);
+  if (wading) { sp *= .62; hint('creek'); }
   const nx = mag ? ix / mag : 0, ny = mag ? iy / mag : 0, k = 1 - Math.exp(-dt * (mag ? 13 : 16));
   P.vx += (nx * sp - P.vx) * k; P.vy += (ny * sp - P.vy) * k;
   P.spd = Math.hypot(P.vx, P.vy);
@@ -1254,7 +1429,8 @@ function updatePlayer(dt) {
       P.stepT = P.tiptoe ? .42 : .3;
       const surf = surfaceAt(P.x, P.y);
       SFX.step(surf, P.tiptoe);
-      if (!P.tiptoe) { makeNoise(P.x, P.y, 70 * hush(), false); puff(P.x, P.y, raining() ? 'splash' : 'dust'); }
+      if (surf === 'water') { makeNoise(P.x, P.y, (P.tiptoe ? 55 : 120) * hush(), false); puff(P.x, P.y, 'splash'); wades.push({ x: P.x, y: P.y, t: time }); if (wades.length > 12) wades.shift(); }
+      else if (!P.tiptoe) { makeNoise(P.x, P.y, 70 * hush(), false); puff(P.x, P.y, raining() ? 'splash' : 'dust'); }
       if (surf === 'sand' || surf === 'dirt') { P.stepSide = -P.stepSide; prints.push({ x: P.x + Math.cos(P.face + HALF) * P.stepSide * 5, y: P.y + Math.sin(P.face + HALF) * P.stepSide * 3, a: P.face, t: 0 }); if (prints.length > 70) prints.shift(); }
     }
     if (!P.tiptoe) for (const tw of twigs) if (tw.cd <= 0 && Math.abs(tw.x - P.x) < 24 && dist(P.x, P.y, tw.x, tw.y) < 22) { tw.cd = 1.6; makeNoise(tw.x, tw.y, 200 * (S.upgrades.soft ? .65 : 1) * (raining() ? .6 : 1), true); SFX.snap(); shake(2.5); hint('twig'); }
@@ -1262,9 +1438,10 @@ function updatePlayer(dt) {
   for (const tw of twigs) if (tw.cd > 0) tw.cd -= dt;
   let hb = null;
   for (const b of bushes) if (Math.abs(b.x - P.x) < 40 && Math.abs(b.y - P.y) < 44 && dist(P.x, P.y, b.x, b.y - 6) < b.r - 4) { hb = b; break; }
-  if (hb !== P.bush) { if (hb) { hb.rustle = 1; SFX.rustle(.7); hint('bush'); } else if (P.bush) P.bush.rustle = 1; P.bush = hb; }
+  if (hb !== P.bush) { if (hb) { hb.rustle = 1; SFX.rustle(.7); hint(hb.log ? 'log' : 'bush'); } else if (P.bush) P.bush.rustle = 1; P.bush = hb; }
   P.hidden = !!hb;
   P.safe = dist(P.x, P.y, DEN.x, DEN.y + 20) < 135;
+  updateArea();
   for (const s of shinies) if (!s.taken && Math.abs(s.x - P.x) < 30 && dist(P.x, P.y, s.x, s.y) < 26) { s.taken = true; S.shinies++; S.dayStats.shinies++; SFX.shiny(); burst(s.x, s.y - 6, KR.sun.join(), 14); floater(s.x, s.y - 20, '+1 shiny', 'sun'); }
   let near = null, nd = 1e9;
   for (const o of interact) { const d = dist(P.x, P.y, o.x, o.y); if (d < o.r && d < nd) { near = o; nd = d; } }
@@ -1456,7 +1633,8 @@ function updateAudio(dt) {
   const t = AC.currentTime, playing = S.mode === 'play' || S.mode === 'caught';
   ambWind.gain.setTargetAtTime(.05 + .03 * Math.sin(time * .23) + .02 * Math.sin(time * .61), t, .3);
   const ex = (P.x - LAKE.x) / LAKE.rx, ey = (P.y - LAKE.y) / LAKE.ry, edge = Math.max(0, (Math.hypot(ex, ey) - 1) * LAKE.ry);
-  ambWater.gain.setTargetAtTime(playing ? .16 * clamp(1 - edge / 380, 0, 1) : 0, t, .3);
+  const brook = clamp(1 - (Math.min(creekDist(P.x, P.y), inPond(P.x, P.y, -140) ? 0 : 999) - 20) / 260, 0, 1);
+  ambWater.gain.setTargetAtTime(playing ? Math.max(.16 * clamp(1 - edge / 380, 0, 1), .13 * brook) : 0, t, .3);
   ambRain.gain.setTargetAtTime(raining() ? .13 : 0, t, .6);
   if (!playing) return;
   if (isFireLit(S.hour)) { const d = dist(P.x, P.y, FIRE.x, FIRE.y); if (d < 520 && Math.random() < dt * 10) noise(.03, .16 * (1 - d / 520), rand(1500, 4200), 2); }
@@ -1503,8 +1681,12 @@ const SFX = {
     if (surf === 'wood') { tone(150, .07, 'triangle', .1 * v); noise(.04, .05 * v, 900, 1.5); }
     else if (surf === 'dirt') noise(.06, .08 * v, 2600, .9);
     else if (surf === 'sand') noise(.08, .06 * v, 1800, .6);
+    else if (surf === 'water') { noise(.14, .1 * v, 800, .7); noise(.07, .06 * v, 2600, 1.4, .05); }
     else noise(.05, .05 * v, 1100, .7);
   },
+  slap() { noise(.09, .32, 900, .7); tone(110, .12, 'sine', .22, 0, 60); noise(.4, .12, 1600, .6, .08); },
+  buzz(v) { tone(196, .5, 'sawtooth', .012 * v, 0, 208); tone(247, .4, 'sawtooth', .008 * v, .12, 233); },
+  discover() { tone(140, .12, 'triangle', .16); [523, 784, 1046].forEach((f, i) => tone(f, .3, 'triangle', .08, .12 + i * .1)); },
   heart(a) { tone(64, .14, 'sine', .3 * a); tone(56, .12, 'sine', .22 * a, .17); },
   owl() { tone(420, .35, 'sine', .04, 0, 380); tone(400, .5, 'sine', .04, .45, 350); },
   plop() { tone(520, .08, 'sine', .12, 0, 900); },
@@ -1543,7 +1725,7 @@ function updateCamera(dt, snap) {
   cam.zk += (zt - cam.zk) * (snap ? 1 : 1 - Math.exp(-dt * 2.5));
   Z = ZOOM * cam.zk;
   const [tx, ty] = camTarget(), vw = VW / Z, vh = VH / Z;
-  const gx = clamp(tx - vw / 2, 0, Math.max(0, W - vw)), gy = clamp(ty - vh / 2, 0, Math.max(0, H - vh));
+  const gx = clamp(tx - vw / 2, 0, Math.max(0, W - vw)), gy = clamp(ty - vh / 2, 0, Math.max(0, H - vh + (isTouch && S.mode !== 'title' ? 250 / Z : 0)));
   const k = snap ? 1 : 1 - Math.exp(-dt * (S.mode === 'title' ? 1.5 : 4.5));
   cam.x += (gx - cam.x) * k; cam.y += (gy - cam.y) * k;
   cam.shake = Math.max(0, cam.shake - dt * 22);
@@ -1615,6 +1797,9 @@ const flies = Array.from({ length: 48 }, (_, i) => { const g = GLADES[i % GLADES
 const butterflies = Array.from({ length: 16 }, (_, i) => { const g = GLADES[(i * 3) % GLADES.length], a = hash2(i, 17) * TAU, r = Math.sqrt(hash2(i, 19)) * g.r * .7; return { x: g.x + Math.cos(a) * r, y: g.y + Math.sin(a) * r, p: hash2(i, 5) * 10, col: ['paper', 'sun', 'rust', 'water'][i % 4] }; });
 const clouds = Array.from({ length: 7 }, (_, i) => ({ x: hash2(i, 31) * W, y: hash2(i, 37) * H, s: .9 + hash2(i, 41) * .9 }));
 const fish = { t: 6, x: 0, y: 0, on: false, age: 0 };
+function pondPoint() { for (let n = 0; n < 30; n++) { const p = POND[n % 3], x = p[0] + rand(-.75, .75) * p[2], y = p[1] + rand(-.7, .7) * p[3]; if (inPond(x, y, 26) && dist(x, y, 2884, 1398) > 50) return [x, y]; } return [2800, 1420]; }
+const beavers = [0, 1].map(() => { const [x, y] = pondPoint(); return { x, y, tx: x, ty: y, a: 0, state: 'swim', t: 0 }; });
+let beeT = 0;
 let leafT = 0, smokeT = 0;
 function updateLife(dt) {
   for (const b of birds) {
@@ -1642,6 +1827,20 @@ function updateLife(dt) {
     const d = dist(P.x, P.y, x, y); if (S.mode === 'play' && d < 650) SFX.splashFar(1 - d / 650);
   }
   if (fish.on) { fish.age += dt; if (fish.age > 1.6) fish.on = false; }
+  for (const b of beavers) {
+    if (b.state === 'swim') {
+      const dx = b.tx - b.x, dy = b.ty - b.y, d = Math.hypot(dx, dy);
+      if (d < 8) [b.tx, b.ty] = pondPoint();
+      else { b.a += angDiff(b.a, Math.atan2(dy, dx)) * Math.min(1, dt * 3); b.x += Math.cos(b.a) * 24 * dt; b.y += Math.sin(b.a) * 24 * dt; }
+      const pd = dist(b.x, b.y, P.x, P.y);
+      if (S.mode === 'play' && (pd < 80 || (pd < 190 && P.moving && !P.tiptoe))) {
+        b.state = 'dive'; b.t = rand(7, 11); SFX.slap(); shake(1.5); hint('beaver');
+        makeNoise(b.x, b.y, 200, true); for (let i = 0; i < 12; i++) puff(b.x, b.y, 'splash');
+      }
+    } else { b.t -= dt; if (b.t <= 0 && dist(b.x, b.y, P.x, P.y) > 220) { b.state = 'swim'; [b.x, b.y] = pondPoint(); [b.tx, b.ty] = pondPoint(); } }
+  }
+  const bd = dist(P.x, P.y, BEE.x, BEE.y - 40);
+  if (S.mode === 'play' && bd < 200) { beeT -= dt; if (beeT <= 0) { beeT = rand(.6, 1.1); SFX.buzz(1 - bd / 200); } }
   leafT -= dt;
   if (leafT <= 0 && parts.length < 380) {
     leafT = rand(.3, .8);
@@ -1700,6 +1899,12 @@ function drawGround(x0, y0, x1, y1) {
     c.strokeStyle = pass ? K.path : K.bark; c.lineWidth = p.w - pass * 7;
     c.beginPath(); p.pts.forEach((q, i) => i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1])); c.stroke();
   }
+  c.strokeStyle = K.mix('earth', 'bark', .3); c.lineWidth = 5;
+  for (const p of PATHS) if (p.rut) for (const off of [-9, 9]) {
+    c.beginPath();
+    p.pts.forEach((q, i) => { const a = p.pts[Math.max(0, i - 1)], b = p.pts[Math.min(p.pts.length - 1, i + 1)], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, nx = -(b[1] - a[1]) / l * off, ny = (b[0] - a[0]) / l * off; i ? c.lineTo(q[0] + nx, q[1] + ny) : c.moveTo(q[0] + nx, q[1] + ny); });
+    c.stroke();
+  }
   for (const p of PATHS) for (let i = 0; i < p.pts.length - 1; i++) {
     const [ax, ay] = p.pts[i], [bx, by] = p.pts[i + 1], n = Math.floor(Math.hypot(bx - ax, by - ay) / 24);
     for (let k = 0; k < n; k++) {
@@ -1708,6 +1913,7 @@ function drawGround(x0, y0, x1, y1) {
     }
   }
   if (x1 > LAKE.x - LAKE.rx - 60 && y0 < LAKE.y + LAKE.ry + 60) drawLake(c);
+  if (x1 > 2620 && y1 > 900 && x0 < 3060) drawCreek(c);
   for (const p of prints) { const a = (1 - p.t / 8) * .45; if (a <= 0) continue; c.save(); c.translate(p.x, p.y); c.rotate(p.a); ell(c, 0, 0, 5, 3, kA('bark', a.toFixed(3))); c.restore(); }
   for (const g of groundItems) { if (g.x < x0 - 140 || g.x > x1 + 140 || g.y < y0 - 80 || g.y > y1 + 80) continue; GROUND[g.kind](c, g); }
   for (const p of conePiles) for (let i = 0; i < p.n; i++) drawCone(c, p.x - 10 + i * 9, p.y + (i % 2) * 3, .3 + i);
@@ -1747,6 +1953,32 @@ function drawLake(c) {
   c.strokeStyle = K.bark; c.lineWidth = 1.6; for (let y = d.y + 12; y < d.y + d.h; y += 12) seg(c, d.x, y, d.x + d.w, y);
   for (const [px, py] of [[d.x + 2, d.y + 4], [d.x + d.w - 2, d.y + 4], [d.x + 2, d.y + d.h * .5], [d.x + d.w - 2, d.y + d.h * .5]]) circ(c, px, py, 4, K.bark);
 }
+// Whisper Creek and the beaver pond, printed with the same three plates as the lake: sand, bank, water
+const K_MOUTH = [[2814, 980], ...CREEK.slice(1)];
+function drawCreek(c) {
+  c.lineCap = 'round'; c.lineJoin = 'round';
+  const line = L => { c.beginPath(); L.forEach((q, i) => i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1])); c.stroke(); };
+  const pond = (g, col) => { c.beginPath(); for (const [x, y, rx, ry] of POND) { c.moveTo(x + rx + g, y); c.ellipse(x, y, rx + g, ry + g * .8, 0, 0, TAU); } c.fillStyle = col; c.fill(); };
+  c.strokeStyle = K.sand; c.lineWidth = 54; line(K_MOUTH); line(CREEK2); pond(30, K.sand);
+  c.strokeStyle = K.earth; c.lineWidth = 40; line(K_MOUTH); line(CREEK2); pond(10, K.earth);
+  c.strokeStyle = K.water; c.lineWidth = 31; line(CREEK); line(CREEK2); pond(0, K.water);
+  c.beginPath(); for (const [x, y, rx, ry] of POND) { c.moveTo(x + 6 + rx * .6, y - 8); c.ellipse(x + 6, y - 8, rx * .6, ry * .52, 0, 0, TAU); } c.fillStyle = K.deep; c.fill();
+  c.strokeStyle = kA('paper', .55); c.lineWidth = 2; c.setLineDash([9, 17]); c.lineDashOffset = -time * 30;
+  for (const off of [-6, 6]) { c.save(); c.translate(off, 0); line(CREEK); line(CREEK2); c.restore(); }
+  c.setLineDash([]);
+  c.strokeStyle = kA('paper', .5); c.lineWidth = 2; c.beginPath();
+  for (let i = 0; i < 9; i++) { const p = POND[i % 3], wx = p[0] + (hash2(i, 41) - .5) * p[2] * 1.1 + Math.sin(time * .35 + i) * 6, wy = p[1] + (hash2(i, 43) - .5) * p[3]; c.moveTo(wx - 8, wy); c.quadraticCurveTo(wx - 4, wy - 3.5, wx, wy); c.quadraticCurveTo(wx + 4, wy + 3.5, wx + 8, wy); }
+  c.stroke();
+  for (const w of wades) { const k = (time - w.t) / 1.2; if (k > 1) continue; c.strokeStyle = kA('paper', (.7 * (1 - k)).toFixed(3)); c.lineWidth = 1.6; c.beginPath(); c.ellipse(w.x, w.y, 6 + k * 20, 3 + k * 8, 0, 0, TAU); c.stroke(); }
+  for (const b of beavers) {
+    if (b.state !== 'swim') { if (b.t > 6) { const k = (b.t - 6) / 4; c.strokeStyle = kA('paper', (.8 * k).toFixed(3)); c.lineWidth = 2; c.beginPath(); c.ellipse(b.x, b.y, 30 - k * 22, 12 - k * 8, 0, 0, TAU); c.stroke(); } continue; }
+    c.save(); c.translate(b.x, b.y); c.rotate(b.a);
+    c.strokeStyle = kA('paper', .55); c.lineWidth = 1.6; c.beginPath(); c.moveTo(-40, -13 + Math.sin(time * 3) * 1.5); c.lineTo(-6, 0); c.lineTo(-40, 13 - Math.sin(time * 3) * 1.5); c.stroke();
+    ell(c, -5, 0, 11, 6.4, K.bark); ell(c, 5, 0, 6.4, 5.2, K.mix('bark', 'earth', .3)); circ(c, 3, -4.6, 1.6, K.bark); circ(c, 3, 4.6, 1.6, K.bark);
+    circ(c, 10.5, 0, 1.7, K.ink); circ(c, 6, -2.4, .9, K.ink); circ(c, 6, 2.4, .9, K.ink);
+    c.restore();
+  }
+}
 function drawCone(c, x, y, rot) {
   c.save(); c.translate(x, y); c.rotate(rot);
   ell(c, 0, 0, 3.6, 5.4, K.bark);
@@ -1765,10 +1997,21 @@ function drawTree(c, t) {
   const s = t.s;
   let a = 1;
   if (S.mode !== 'title' && Math.abs(P.x - t.x) < 60 * s && P.y < t.y + 4 && P.y > t.y - 110 * s) a = .4;
-  shadow(c, t.x + 6, t.y + 2, 30 * s, 10 * s);
+  const sw = Math.sin(time * 1.1 + t.x * .021) * 1.8 * s, lit = SUN.dx > 0 ? -1 : 1;
+  if (t.type === 'snag') { drawSnag(c, t, s, sw * .3, lit); return; }
+  shadow(c, t.x + 6, t.y + 2, (t.type === 'birch' ? 22 : 30) * s, 10 * s);
+  if (t.type === 'birch') {
+    const y = t.y - 64 * s, x = t.x + sw;
+    c.fillStyle = K.paper; c.fillRect(t.x - 3.4 * s, y, 6.8 * s, t.y - y + 2);
+    c.fillStyle = K.ink; for (let i = 0; i < 6; i++) { const yy = t.y - 6 * s - i * 9.5 * s - hash2(t.x | 0, i) * 4 * s; c.fillRect(t.x - 3.4 * s + (i % 2 ? 2.6 * s : 0), yy, 4 * s, 1.6 * s); }
+    c.globalAlpha = a;
+    blobs(c, [[x - 13 * s, y + 4 * s, 15 * s], [x + 13 * s, y + 2 * s, 16 * s], [x, y - 10 * s, 18 * s], [x - 3 * s, y + 13 * s, 12 * s]], K.leafM);
+    blobs(c, [[x + lit * 8 * s, y - 14 * s, 12 * s], [x + lit * 16 * s, y, 9 * s], [x - lit * 9 * s, y - 2 * s, 8 * s]], K.leaf);
+    for (let i = 0; i < 5; i++) circ(c, x - 14 * s + hash2(t.y | 0, i) * 28 * s, y - 16 * s + hash2(i, t.x | 0) * 26 * s, 1.9 * s, K.sun);
+    c.globalAlpha = 1; return;
+  }
   c.fillStyle = K.bark; c.fillRect(t.x - 4.5 * s, t.y - 22 * s, 9 * s, 24 * s);
   c.globalAlpha = a;
-  const sw = Math.sin(time * 1.1 + t.x * .021) * 1.8 * s, lit = SUN.dx > 0 ? -1 : 1;
   if (t.type === 'pine') {
     for (let i = 0; i < 3; i++) {
       const w = (36 - i * 8) * s, yb = t.y - (12 + i * 22) * s, yt = yb - (42 - i * 4) * s, ax = t.x + sw * (i + 1) * .55;
@@ -1784,6 +2027,24 @@ function drawTree(c, t) {
     if (t.swing) { const sx = t.x - 16 * s, sw2 = Math.sin(time * 1.3) * 5; c.globalAlpha = 1; c.strokeStyle = K.sand; c.lineWidth = 1.5; seg(c, sx - 7, y + 20 * s, sx - 7 + sw2, t.y + 8); seg(c, sx + 7, y + 20 * s, sx + 7 + sw2, t.y + 8); keyed(c, () => rrect(c, sx - 10 + sw2, t.y + 6, 20, 5, 1.5), K.earth, K.ink, 1.2); }
   }
   c.globalAlpha = 1;
+}
+function drawSnag(c, t, s, sw, lit) {
+  const x = t.x, top = t.y - 96 * s;
+  shadow(c, x + 6, t.y + 2, 14 * s, 6 * s);
+  poly(c, [[x - 7 * s, t.y + 1], [x + 7 * s, t.y + 1], [x + 4.6 * s + sw, top + 16 * s], [x + 1.4 * s + sw, top + 6 * s], [x - 1.6 * s + sw, top + 20 * s], [x - 5 * s + sw, top]], K.stone);
+  poly(c, [[x + lit * 7 * s, t.y + 1], [x + lit * 1.5 * s, t.y + 1], [x + lit * 1 * s + sw, top + 14 * s], [x + lit * 4.6 * s + sw, top + 16 * s]], K.stoneD);
+  c.strokeStyle = K.stone; c.lineCap = 'round'; c.lineWidth = 3.4 * s;
+  seg(c, x + sw, top + 38 * s, x + 20 * s + sw, top + 20 * s); seg(c, x + sw, top + 56 * s, x - 18 * s + sw, top + 40 * s);
+  c.lineWidth = 2 * s; seg(c, x + 13 * s + sw, top + 26 * s, x + 17 * s + sw, top + 34 * s); seg(c, x - 11 * s + sw, top + 46 * s, x - 15 * s + sw, top + 52 * s);
+  c.strokeStyle = K.stoneD; c.lineWidth = 1; seg(c, x - 2 * s, t.y - 6 * s, x - 1 * s + sw, top + 40 * s); seg(c, x + 3 * s, t.y - 20 * s, x + 2 * s + sw, top + 50 * s);
+  if (!t.hive) return;
+  const hy = t.y - 50 * s, full = t.loot && t.loot.stocks.honey > 0;
+  ell(c, x + 1, hy, 4.4 * s, 6.8 * s, K.ink);
+  if (full) { ell(c, x + 1, hy + 5 * s, 3.4 * s, 2.4 * s, K.sun); ell(c, x + 2.4, hy + 9 * s, 1.4, 2.6, K.sun); }
+  for (let i = 0; i < (full ? 8 : 3); i++) {
+    const a = time * (2.2 + i * .37) + i * 2.1, bx = x + Math.cos(a) * (10 + i * 2.6) * s * .8, by = hy + Math.sin(a * 1.3) * 9 * s;
+    circ(c, bx, by, 1.8, K.sun); circ(c, bx + .7, by, .8, K.ink);
+  }
 }
 function drawBush(c, b) {
   const sh = (P.bush === b ? Math.sin(time * 9) * .8 : 0) + Math.sin(time * 40) * b.rustle * 3 + Math.sin(time * 1.4 + b.x * .03) * .8;
@@ -2100,6 +2361,7 @@ function drawBramble(c, x, y, face, t, o = {}) {
   c.restore();
 }
 function drawPlayer(c) {
+  if (P.bush && P.bush.log) return;
   drawBramble(c, P.x, P.y, P.face, time, { moving: P.moving && S.mode === 'play', tiptoe: P.tiptoe, pouch: S.pouch.length, crown: S.upgrades.crown, rum: !!P.rum,
     lean: clamp(-P.vx / 1000, -.15, .15) + (P.tiptoe ? Math.cos(P.face) * -.08 : 0), look: P.idleT > 2.5 ? Math.sin(time * 1.1) : 0, glow: dark > .3 });
 }
@@ -2370,6 +2632,179 @@ function drawMapboard(c, o) {
   c.drawImage(mm, x - 25, y - 49, 50, 28);
   keyed(c, () => { c.beginPath(); c.moveTo(x - 33, y - 52); c.lineTo(x, y - 65); c.lineTo(x + 33, y - 52); c.closePath(); }, K.rust, K.ink, 1.6);
 }
+function drawStump(c, o) {
+  const s = o.s || 1, x = o.x, y = o.y;
+  shadow(c, x + 3, y + 2, 14 * s, 5 * s);
+  c.fillStyle = K.bark; c.fillRect(x - 9 * s, y - 12 * s, 18 * s, 13 * s);
+  poly(c, [[x - 9 * s, y], [x - 13 * s, y + 2], [x - 8 * s, y - 4 * s]], K.bark); poly(c, [[x + 9 * s, y], [x + 13 * s, y + 2], [x + 8 * s, y - 4 * s]], K.bark);
+  ell(c, x, y - 12 * s, 9 * s, 4.6 * s, K.sand);
+  c.strokeStyle = K.earth; c.lineWidth = 1; c.beginPath(); c.ellipse(x, y - 12 * s, 5 * s, 2.4 * s, 0, 0, TAU); c.stroke();
+}
+function drawTrailmix(c, o) {
+  drawStump(c, { x: o.x, y: o.y, s: 1.15 });
+  if (!o.loot.avail(S.hour) || !(o.loot.stocks.trailmix > 0)) return;
+  const x = o.x, y = o.y - 15;
+  for (const [dx, col] of [[-3, K.bark], [0, K.rust], [3, K.sun]]) circ(c, x + dx, y - 12.5, 2.2, col);
+  keyed(c, () => { c.beginPath(); c.moveTo(x - 6, y - 12); c.lineTo(x + 6, y - 12); c.lineTo(x + 7.5, y); c.lineTo(x - 7.5, y); c.closePath(); }, K.earth, K.ink, 1.1);
+  c.fillStyle = K.paper; c.fillRect(x - 3.5, y - 7, 7, 4);
+}
+function drawDeadfall(c, o) {
+  c.save(); c.translate(o.x, o.y);
+  ell(c, 6, 4, o.len * .52, 7, kA('ink', (.22 * SUN.a).toFixed(3)));
+  c.rotate(o.a);
+  keyed(c, () => rrect(c, -o.len / 2, -15, o.len, 15, 7), K.bark, K.ink, 1.3);
+  c.strokeStyle = K.mix('bark', 'ink', .3); c.lineWidth = 1; seg(c, -o.len / 2 + 8, -10, o.len / 2 - 12, -11); seg(c, -o.len / 2 + 16, -5, o.len / 2 - 20, -4);
+  ell(c, o.len / 2 - 1, -7.5, 3.8, 7.4, K.sand); c.strokeStyle = K.earth; c.beginPath(); c.ellipse(o.len / 2 - 1, -7.5, 1.6, 3.4, 0, 0, TAU); c.stroke();
+  blobs(c, [[-o.len * .16, -15, 6.5], [-o.len * .04, -16, 4.6], [o.len * .2, -15, 3.6]], K.moss);
+  c.restore();
+}
+function drawHollowLog(c, b) {
+  const x = b.x + Math.sin(time * 40) * b.rustle * 1.5, y = b.y;
+  shadow(c, x + 4, y + 3, 64, 9);
+  keyed(c, () => rrect(c, x - 58, y - 30, 116, 30, 14), K.bark, K.ink, 1.6);
+  c.strokeStyle = K.mix('bark', 'ink', .3); c.lineWidth = 1.1;
+  seg(c, x - 46, y - 22, x + 20, y - 21); seg(c, x - 30, y - 12, x + 40, y - 11); seg(c, x - 50, y - 6, x - 10, y - 5);
+  ell(c, x + 50, y - 15, 9.5, 15, K.earth); ell(c, x + 51.5, y - 15, 6.8, 12, K.ink);
+  ell(c, x - 55, y - 15, 5, 13.5, K.mix('bark', 'ink', .25));
+  blobs(c, [[x - 22, y - 30, 9], [x - 8, y - 32, 7], [x + 12, y - 30, 6], [x - 36, y - 29, 5]], K.moss);
+  ell(c, x - 30, y - 11, 7, 3, K.sand); ell(c, x - 25, y - 6.5, 5, 2.4, K.sand);
+}
+function drawBlind(c, o) {
+  const x = o.x, y = o.y, wood = K.mix('earth', 'bark', .35);
+  shadow(c, x + 6, y + 3, 56, 8);
+  keyed(c, () => { c.beginPath(); c.rect(x - 50, y - 56, 100, 56); }, wood, K.ink, 1.8);
+  c.strokeStyle = K.mix('earth', 'bark', .6); c.lineWidth = 1; for (let xx = x - 42; xx < x + 50; xx += 8) seg(c, xx, y - 54, xx, y);
+  c.fillStyle = K.ink; c.fillRect(x - 40, y - 42, 80, 10); c.fillStyle = K.water; c.fillRect(x - 38, y - 40, 76, 3);
+  keyed(c, () => { c.beginPath(); c.moveTo(x - 57, y - 54); c.lineTo(x + 57, y - 54); c.lineTo(x + 50, y - 68); c.lineTo(x - 50, y - 68); c.closePath(); }, K.mossD, K.ink, 1.6);
+  blobs(c, [[x - 30, y - 66, 5], [x + 18, y - 67, 6], [x + 36, y - 65, 4]], K.moss);
+  c.fillStyle = K.paper; c.fillRect(x + 22, y - 22, 20, 12); c.fillStyle = K.ink; c.fillRect(x + 25, y - 18, 14, 1.4); c.fillRect(x + 25, y - 15, 10, 1.4);
+}
+function drawPlank(c, o) {
+  const x = o.x, y = o.y;
+  shadow(c, x + 3, y + 3, 34, 5);
+  c.fillStyle = K.bark; c.fillRect(x - 26, y - 6, 4, 8); c.fillRect(x + 22, y - 6, 4, 8);
+  keyed(c, () => rrect(c, x - 32, y - 11, 64, 7, 2), K.earth, K.ink, 1.3);
+}
+function drawLodge(c, o) {
+  const x = o.x, y = o.y;
+  ell(c, x, y + 2, 50, 15, kA('deep', .7));
+  c.beginPath(); c.ellipse(x, y, 42, 32, 0, Math.PI, 0); c.closePath(); c.fillStyle = K.bark; c.fill();
+  c.strokeStyle = K.earth; c.lineWidth = 2.2; c.lineCap = 'round';
+  for (let i = 0; i < 16; i++) { const a = Math.PI + (i + .5) / 16 * Math.PI, r = 14 + hash2(i, 3) * 22, px = x + Math.cos(a) * r, py = y + Math.sin(a) * r * .78, tl = (hash2(i, 5) - .5) * 12; seg(c, px - 9, py + tl, px + 9, py - tl); }
+  blobs(c, [[x - 8, y - 30, 7], [x + 6, y - 31, 5]], K.moss);
+  c.strokeStyle = K.ink; c.lineWidth = 1.6; c.beginPath(); c.ellipse(x + 1.6, y + 1.1, 42, 32, 0, Math.PI, 0); c.stroke();
+  c.strokeStyle = kA('paper', .5); c.lineWidth = 1.6; c.beginPath(); c.ellipse(x, y + 2, 48 + Math.sin(time * 1.5) * 2, 9, 0, 0, Math.PI); c.stroke();
+}
+let slideArt = null;
+function drawSlide(c, x, y, w, h) {
+  const k = Math.floor(time / 5) % 3, cx = x + w / 2;
+  if (k === 0) {
+    if (!slideArt) {
+      slideArt = document.createElement('canvas'); slideArt.width = 140; slideArt.height = 150;
+      const g = slideArt.getContext('2d'); drawBramble(g, 70, 138, HALF, 0, { pal: DAYK });
+      g.globalCompositeOperation = 'source-in'; g.fillStyle = DAYK.bark; g.fillRect(0, 0, 140, 150);
+      const px = g.getImageData(0, 0, 140, 150).data; let x0 = 140, y0 = 150, x1 = 0, y1 = 0;
+      for (let i = 3; i < px.length; i += 4) if (px[i] > 40) { const q = (i - 3) / 4, qx = q % 140, qy = (q / 140) | 0; x0 = Math.min(x0, qx); x1 = Math.max(x1, qx); y0 = Math.min(y0, qy); y1 = Math.max(y1, qy); }
+      slideArt.crop = x1 > x0 ? [x0, y0, x1 - x0 + 1, y1 - y0 + 1] : [0, 0, 140, 150];
+    }
+    const [ax, ay, aw, ah] = slideArt.crop, sh = h - 18, sw = sh * aw / ah;
+    c.drawImage(slideArt, ax, ay, aw, ah, cx - sw / 2, y + 15, sw, sh);
+    signText(c, 'HAVE YOU SEEN ME?', cx, y + 8, 7, K.rust);
+  } else if (k === 1) {
+    fillRR(c, cx - 22, y + 22, 44, 28, 4, K.water); c.fillStyle = K.paper; c.fillRect(cx - 22, y + 22, 44, 7);
+    c.strokeStyle = K.ink; c.lineWidth = 2.4; c.beginPath(); c.arc(cx, y + 33, 5, Math.PI, 0); c.stroke(); fillRR(c, cx - 7, y + 33, 14, 11, 2, K.sun);
+    signText(c, 'LATCH YOUR COOLER', cx, y + 10, 7, K.rust);
+  } else {
+    circ(c, cx + 14, y + 34, 11, K.sun);
+    tri(c, cx - 46, y + 60, cx - 12, y + 24, cx + 22, y + 60, K.deep); tri(c, cx - 6, y + 60, cx + 22, y + 30, cx + 50, y + 60, K.pine);
+    for (const px of [-30, -18, 30]) tri(c, cx + px - 6, y + 60, cx + px + 6, y + 60, cx + px, y + 40, K.moss);
+    signText(c, 'KEEP WILDLIFE WILD', cx, y + 10, 7, K.rust);
+  }
+}
+function drawScreen(c, o) {
+  const x = o.x, y = o.y, on = programOn();
+  shadow(c, x + 8, y + 2, 66, 8);
+  c.fillStyle = K.bark; c.fillRect(x - 56, y - 104, 7, 106); c.fillRect(x + 49, y - 104, 7, 106);
+  keyed(c, () => rrect(c, x - 60, y - 104, 120, 72, 3), K.bark, K.ink, 1.8);
+  const sx = x - 54, sy = y - 98, sw = 108, sh = 60;
+  c.fillStyle = on ? K.mix('paper', 'sun', .22) : K.paper; c.fillRect(sx, sy, sw, sh);
+  c.save(); c.beginPath(); c.rect(sx, sy, sw, sh); c.clip();
+  if (on) drawSlide(c, sx, sy, sw, sh);
+  else { signText(c, 'EVENING', x, sy + 16, 13, K.rust); signText(c, 'PROGRAM', x, sy + 32, 13, K.rust); signText(c, 'NIGHTLY AT 7', x, sy + 49, 8, K.ink); }
+  c.restore();
+  keyed(c, () => { c.beginPath(); c.moveTo(x - 66, y - 102); c.lineTo(x, y - 122); c.lineTo(x + 66, y - 102); c.closePath(); }, K.rust, K.ink, 1.6);
+}
+function drawLogbench(c, o) {
+  const x = o.x, y = o.y;
+  shadow(c, x + 3, y + 3, 40, 6);
+  c.fillStyle = K.bark; c.fillRect(x - 30, y - 5, 7, 8); c.fillRect(x + 23, y - 5, 7, 8);
+  keyed(c, () => rrect(c, x - 38, y - 14, 76, 11, 5), K.earth, K.ink, 1.4);
+  c.strokeStyle = K.mix('earth', 'bark', .4); c.lineWidth = 1; seg(c, x - 32, y - 10, x + 32, y - 10);
+  ell(c, x - 37, y - 8.5, 2.6, 4.8, K.sand); ell(c, x + 37, y - 8.5, 2.6, 4.8, K.sand);
+}
+function drawCookies(c, o) {
+  const x = o.x, y = o.y;
+  shadow(c, x + 3, y + 6, 30, 6);
+  c.strokeStyle = K.stoneD; c.lineWidth = 2; seg(c, x - 22, y - 8, x - 16, y + 4); seg(c, x - 16, y - 8, x - 22, y + 4); seg(c, x + 22, y - 8, x + 16, y + 4); seg(c, x + 16, y - 8, x + 22, y + 4);
+  keyed(c, () => rrect(c, x - 28, y - 17, 56, 10, 2), K.paper, K.ink, 1.4);
+  c.fillStyle = kA('rust', .5); for (let i = 0; i < 7; i++) c.fillRect(x - 26 + i * 8, y - 17, 4, 10);
+  if (!o.loot.avail(S.hour)) return;
+  keyed(c, () => rrect(c, x + 12, y - 32, 10, 16, 3), K.sun, K.ink, 1.1); c.fillStyle = K.paper; c.fillRect(x + 13, y - 29, 8, 3);
+  ell(c, x - 7, y - 18, 15, 4.5, K.stone);
+  const n = o.loot.stocks.cookie || 0;
+  for (let i = 0; i < n * 2; i++) { const cx = x - 15 + (i % 3) * 8, cy = y - 19 - Math.floor(i / 3) * 3.4; circ(c, cx, cy, 3.9, K.earth); circ(c, cx - 1, cy - .6, 1, K.bark); }
+}
+function drawProjector(c, o) {
+  const x = o.x, y = o.y, on = programOn();
+  shadow(c, x + 2, y + 2, 12, 4);
+  c.strokeStyle = K.ink; c.lineWidth = 1.6; seg(c, x, y - 20, x - 9, y); seg(c, x, y - 20, x + 9, y); seg(c, x, y - 20, x, y + 2);
+  const sp = on ? time * 4 : 0;
+  for (const dx of [-6, 6]) { circ(c, x + dx, y - 38, 6, K.ink); c.strokeStyle = K.stone; c.lineWidth = 1.2; c.beginPath(); c.arc(x + dx, y - 38, 3.5, sp, sp + 4); c.stroke(); }
+  keyed(c, () => rrect(c, x - 10, y - 32, 20, 13, 2), K.stoneD, K.ink, 1.2);
+  circ(c, x, y - 26, 3, on ? K.sun : K.ink);
+}
+function drawMill(c, o) {
+  const x = o.x, y = o.y, wood = K.mix('bark', 'paper', .22);
+  shadow(c, x + 16, y + 6, 104, 14);
+  c.fillStyle = K.stoneD; c.fillRect(x + 46, y - 132, 12, 70); ell(c, x + 52, y - 132, 6, 2.4, K.ink);
+  keyed(c, () => { c.beginPath(); c.rect(x - 80, y - 74, 160, 62); }, wood, K.ink, 1.8);
+  c.strokeStyle = K.mix('bark', 'ink', .35); c.lineWidth = 1; for (let xx = x - 72; xx < x + 80; xx += 9) seg(c, xx, y - 70 + hash2(xx | 0, 1) * 5, xx, y - 12);
+  c.fillStyle = K.ink; c.fillRect(x - 54, y - 62, 7, 30); c.fillRect(x + 50, y - 56, 6, 26);
+  c.fillStyle = K.mix('ink', 'bark', .25); c.fillRect(x - 24, y - 60, 48, 48);
+  const bx = x, by = y - 34;
+  c.fillStyle = K.rust; c.beginPath(); for (let i = 0; i < 24; i++) { const a = i / 24 * TAU, r = i % 2 ? 15 : 18; i ? c.lineTo(bx + Math.cos(a) * r, by + Math.sin(a) * r) : c.moveTo(bx + Math.cos(a) * r, by + Math.sin(a) * r); } c.closePath(); c.fill();
+  circ(c, bx, by, 10, K.mix('rust', 'bark', .35)); circ(c, bx, by, 3.4, K.ink);
+  keyed(c, () => { c.beginPath(); c.rect(x - 86, y - 14, 172, 14); }, K.stone, K.ink, 1.6);
+  c.strokeStyle = K.stoneD; c.lineWidth = 1; for (let i = 0; i < 9; i++) { const sx = x - 76 + i * 19 + (i % 2) * 5; seg(c, sx, y - 14, sx, y); }
+  keyed(c, () => { c.beginPath(); c.moveTo(x - 94, y - 68); c.lineTo(x - 30, y - 116); c.lineTo(x - 2, y - 104); c.lineTo(x + 18, y - 88); c.lineTo(x + 94, y - 80); c.lineTo(x + 92, y - 70); c.closePath(); }, K.rust, K.ink, 1.8);
+  c.strokeStyle = K.mix('rust', 'ink', .3); c.lineWidth = 1.2; for (let i = 1; i < 9; i++) { const k = i / 9; seg(c, lerp(-94, 94, k) + x, y - 69 - (k < .35 ? k / .35 * 44 : 44 - (k - .35) * 55), lerp(-94, 94, k) + x + 4, y - 72); }
+  blobs(c, [[x - 40, y - 100, 9], [x - 28, y - 108, 6], [x + 56, y - 80, 7], [x + 70, y - 78, 5]], K.moss);
+  c.fillStyle = K.leafM; for (const [vx, vy] of [[-78, -40], [-74, -28], [76, -46], [70, -36], [78, -22]]) leaf(c, x + vx, y + vy, 6, 3, vx * .02, K.leafM);
+}
+function drawLogdeck(c, o) {
+  const x = o.x, y = o.y, R = 11, ends = [];
+  shadow(c, x + 8, y + 2, 64, 9);
+  for (let r = 0; r < 3; r++) for (let i = 0; i < 4 - r; i++) ends.push([x - (3 - r) * R + i * 2 * R, y - R - r * R * 1.72]);
+  for (const [lx, ly] of ends) { c.fillStyle = K.bark; c.fillRect(lx - R, ly - 30, 2 * R, 30); }
+  c.strokeStyle = K.mix('bark', 'ink', .3); c.lineWidth = 1; for (const [lx, ly] of ends) seg(c, lx - R + 3, ly - 28, lx - R + 3, ly - 6);
+  for (const [lx, ly] of ends) {
+    circ(c, lx + 1.4, ly + 1, R, K.ink); circ(c, lx, ly, R, K.bark); circ(c, lx, ly, R - 2.4, K.sand);
+    c.strokeStyle = K.earth; c.lineWidth = 1; c.beginPath(); c.arc(lx, ly, R * .55, 0, TAU); c.stroke(); circ(c, lx, ly, 1.4, K.earth);
+  }
+  c.strokeStyle = K.mix('rust', 'ink', .2); c.lineWidth = 2; seg(c, x - 46, y - 40, x + 46, y - 40);
+}
+function drawTruck(c, o) {
+  const x = o.x, y = o.y, paint = K.mix('rust', 'water', .35);
+  shadow(c, x + 10, y + 2, 76, 10);
+  keyed(c, () => { c.beginPath(); c.rect(x - 22, y - 34, 88, 10); }, K.mix('rust', 'bark', .45), K.ink, 1.6);
+  c.fillStyle = K.bark; for (const sx of [-14, 22, 56]) c.fillRect(x + sx, y - 56, 5, 24);
+  keyed(c, () => { c.beginPath(); c.moveTo(x - 66, y - 22); c.lineTo(x - 66, y - 42); c.lineTo(x - 50, y - 46); c.lineTo(x - 46, y - 68); c.lineTo(x - 20, y - 68); c.lineTo(x - 18, y - 22); c.closePath(); }, paint, K.ink, 1.8);
+  fillRR(c, x - 43, y - 63, 20, 15, 2, K.mix('water', 'paper', .3)); c.strokeStyle = K.ink; c.lineWidth = 1; seg(c, x - 41, y - 52, x - 30, y - 61);
+  c.strokeStyle = K.mix('rust', 'ink', .4); c.lineWidth = 1.4; for (let i = 0; i < 4; i++) seg(c, x - 64, y - 38 + i * 4, x - 52, y - 38 + i * 4);
+  for (const [rx, ry, rr] of [[-58, -30, 4], [-34, -36, 3], [-26, -28, 5]]) ell(c, x + rx, y + ry, rr, rr * .7, K.rust);
+  for (const wx of [-48, 14, 48]) { ell(c, x + wx, y - 8, 11, 9, K.ink); circ(c, x + wx, y - 9, 4, K.stone); }
+  for (const gx of [-60, -30, 0, 30, 60]) { c.strokeStyle = K.moss; c.lineWidth = 1.6; seg(c, x + gx - 3, y + 1, x + gx - 5, y - 8); seg(c, x + gx + 1, y + 1, x + gx + 2, y - 10); seg(c, x + gx + 4, y + 1, x + gx + 7, y - 7); }
+}
 GROUND.canoe = (c, g) => {
   c.strokeStyle = kA('paper', .6); c.lineWidth = 1.2; seg(c, g.x - 8, g.y - 22, DOCK.x + DOCK.w - 2, g.y - 34);
   c.save(); c.translate(g.x, g.y); c.rotate(-1.4 + Math.sin(time * .8) * .03);
@@ -2384,6 +2819,48 @@ GROUND.rowboat = (c, g) => {
   keyed(c, () => { c.beginPath(); c.ellipse(g.x, g.y, 30, 12, -.15, 0, TAU); }, K.water, K.ink, 1.5);
   c.save(); c.beginPath(); c.ellipse(g.x, g.y, 30, 12, -.15, 0, TAU); c.clip(); c.fillStyle = K.paper; c.fillRect(g.x - 32, g.y - 2, 64, 4); c.restore();
   c.strokeStyle = K.ink; c.lineWidth = 1.4; seg(c, g.x - 26, g.y + 3.5, g.x + 26, g.y - 4.5);
+};
+GROUND.bridge = (c, g) => {
+  const x = g.x, y = g.y;
+  ell(c, x + 5, y + 17, 46, 6, kA('ink', .25));
+  c.fillStyle = K.earth; c.fillRect(x - 46, y - 14, 92, 28);
+  c.strokeStyle = K.mix('earth', 'bark', .5); c.lineWidth = 1.4; for (let xx = x - 38; xx < x + 46; xx += 8) seg(c, xx, y - 14, xx, y + 14);
+  c.strokeStyle = K.ink; c.lineWidth = 1.6; c.strokeRect(x - 44.4, y - 12.9, 92, 28);
+  c.lineCap = 'round';
+  for (const ry of [-14, 14]) { c.strokeStyle = K.bark; c.lineWidth = 3; for (const px of [-44, -15, 15, 44]) seg(c, x + px, y + ry, x + px, y + ry - 11); c.lineWidth = 3.4; seg(c, x - 46, y + ry - 10, x + 46, y + ry - 10); }
+};
+GROUND.dam = (c, g) => {
+  const x = g.x, y = g.y;
+  ell(c, x, y - 2, 72, 19, K.bark);
+  c.strokeStyle = K.earth; c.lineWidth = 2.4; c.lineCap = 'round';
+  for (let i = 0; i < 23; i++) { const px = x - 66 + i * 6, py = y - 12 + hash2(i, 9) * 18, tilt = (hash2(i, 2) - .5) * 9; seg(c, px - 8, py + tilt, px + 8, py - tilt); }
+  c.strokeStyle = K.mix('bark', 'ink', .3); c.lineWidth = 1.8;
+  for (let i = 0; i < 9; i++) { const px = x - 56 + i * 14, py = y - 6 + hash2(i, 13) * 12; seg(c, px - 6, py - 3, px + 6, py + 3); }
+  c.strokeStyle = K.ink; c.lineWidth = 1.5; c.beginPath(); c.ellipse(x + 1.6, y - .9, 72, 19, 0, .15, Math.PI - .15); c.stroke();
+  fillRR(c, x - 10, y - 10, 20, 26, 4, K.water);
+  c.strokeStyle = kA('paper', .85); c.lineWidth = 1.6; c.setLineDash([5, 6]); c.lineDashOffset = -time * 34;
+  for (const dx of [-5, 0, 5]) seg(c, x + dx, y - 9, x + dx, y + 15);
+  c.setLineDash([]);
+};
+GROUND.stage = (c, g) => {
+  const x = g.x, y = g.y;
+  c.fillStyle = K.bark; c.fillRect(x - 72, y - 26, 144, 54);
+  c.fillStyle = K.earth; c.fillRect(x - 72, y - 26, 144, 44);
+  c.strokeStyle = K.mix('earth', 'bark', .45); c.lineWidth = 1.2; for (let yy = y - 18; yy < y + 18; yy += 8) seg(c, x - 72, yy, x + 72, yy);
+  c.strokeStyle = K.ink; c.lineWidth = 1.6; c.strokeRect(x - 70.4, y - 24.9, 144, 54);
+};
+GROUND.sawdust = (c, g) => { ell(c, g.x, g.y, 30, 11, K.mix('earth', 'paper', .62)); ell(c, g.x - 6, g.y - 3, 15, 5, K.paper); };
+GROUND.fern = (c, g) => {
+  const s = g.s, sw = Math.sin(time * 1.3 + g.x * .05) * .06;
+  for (let i = 0; i < 5; i++) { const a = -HALF + (i - 2) * .55 + sw; leaf(c, g.x + Math.cos(a) * 9 * s, g.y - 3 + Math.sin(a) * 7 * s, 10 * s, 2.8 * s, a, i % 2 ? K.moss : K.mossD); }
+};
+GROUND.shroom = (c, g) => {
+  for (let i = 0; i < 3; i++) {
+    const x = g.x + (i - 1) * 6, y = g.y + (i % 2) * 3, h = 5 + (i === 1 ? 2 : 0);
+    c.fillStyle = K.paper; c.fillRect(x - 1.2, y - h, 2.4, h);
+    ell(c, x, y - h, 4.4, 2.8, g.v ? K.rust : K.earth);
+    if (g.v) { circ(c, x - 1.5, y - h - .8, .8, K.paper); circ(c, x + 1.6, y - h, .7, K.paper); }
+  }
 };
 GROUND.flowerbed = (c, g) => {
   fillRR(c, g.x - 18, g.y - 7, 36, 14, 3, K.bark);
@@ -2544,6 +3021,32 @@ function drawScreenFX() {
   }
   c.globalAlpha = 1;
   if (hoverObj && S.mode === 'play') { const [sx, sy] = toScreen(hoverObj.x, hoverObj.y - 34); tag(c, sx, sy, hoverLabel(hoverObj)); }
+  drawCard(c);
+}
+// a park-sign title card for the place Bramble just walked into
+function drawCard(c) {
+  if (!card || S.mode !== 'play') return;
+  const k = time - card.t; if (k > 3.6) { card = null; return; }
+  const a = clamp(Math.min(k / .35, (3.6 - k) / .7), 0, 1), e = 1 - Math.pow(1 - clamp(k / .45, 0, 1), 3), D = DAYK;
+  const name = card.a.name.toUpperCase(), cx = VW / 2, cy = (isTouch ? Math.max(VH * .3, 190) : VH - 118) + (1 - e) * 14, small = VW < 520;
+  c.save(); c.globalAlpha = a; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.font = `${small ? 19 : 25}px "Alfa Slab One", Rockwell, Georgia, serif`;
+  const w = Math.min(VW - 32, Math.max(c.measureText(name).width + 86, 230)), h = small ? 56 : 64;
+  fillRR(c, cx - w / 2 + 5, cy - h / 2 + 5, w, h, 5, 'rgba(8,10,16,.45)');
+  fillRR(c, cx - w / 2, cy - h / 2, w, h, 5, D.paper);
+  c.strokeStyle = D.pine; c.lineWidth = 2.4; rrect(c, cx - w / 2 + 6, cy - h / 2 + 6, w - 12, h - 12, 3); c.stroke();
+  for (const sd of [-1, 1]) { const tx = cx + sd * (w / 2 - 24); tri(c, tx - 8, cy + 9, tx + 8, cy + 9, tx, cy - 13, D.pine); tri(c, tx - 6, cy + 2, tx + 6, cy + 2, tx, cy - 16, D.moss); }
+  const ny = cy - (small ? 6 : 7);
+  c.fillStyle = D.rust; c.fillText(name, cx + 2, ny + 1.5); c.fillStyle = D.pine; c.fillText(name, cx, ny);
+  c.font = `700 ${small ? 10 : 11}px "Zilla Slab", Georgia, serif`; if ('letterSpacing' in c) c.letterSpacing = '1.5px';
+  c.fillStyle = D.bark; c.fillText((card.a.sub || '').toUpperCase(), cx, cy + (small ? 13 : 16));
+  if ('letterSpacing' in c) c.letterSpacing = '0px';
+  if (card.fresh) {
+    c.translate(cx + w / 2 - 30, cy - h / 2 - 2); c.rotate(-.12);
+    fillRR(c, -40, -11, 80, 22, 3, D.rust); c.strokeStyle = D.paper; c.lineWidth = 1.4; rrect(c, -37, -8, 74, 16, 2); c.stroke();
+    c.font = '11px "Alfa Slab One", Rockwell, Georgia, serif'; c.fillStyle = D.paper; c.fillText('NEW PLACE', 0, 1);
+  }
+  c.restore();
 }
 function drawWorldUI() {
   const c = ctx;
@@ -2578,8 +3081,14 @@ function drawWorldUI() {
     }
   }
   if (S.mode === 'play' && P.bush) {
-    const bx = P.bush.x, by = P.bush.y - 24, blink = Math.sin(time * 1.3) > .96;
+    const bx = P.bush.log ? P.bush.x + 51 : P.bush.x, by = P.bush.y - (P.bush.log ? 17 : 24), blink = Math.sin(time * 1.3) > .96;
     for (const sd of [-1, 1]) { if (dark > .3) circ(c, bx + sd * 5, by, 6, kA('sun', .25)); ell(c, bx + sd * 5 + Math.cos(P.face) * 1.2, by, 2.4, blink ? .4 : 2.6, K.sun); }
+  }
+  if (programOn() && dark > .05) {
+    const px = AMPHI.x, py = AMPHI.y + 218, top = AMPHI.y - 124, a = clamp(dark * .5, .04, .16);
+    const g = c.createLinearGradient(px, py, px, top); g.addColorStop(0, kA('paper', (a * 1.6).toFixed(3))); g.addColorStop(1, kA('paper', (a * .4).toFixed(3)));
+    c.fillStyle = g; c.beginPath(); c.moveTo(px - 3, py); c.lineTo(px - 54, top + 60); c.lineTo(px - 54, top); c.lineTo(px + 54, top); c.lineTo(px + 54, top + 60); c.lineTo(px + 3, py); c.closePath(); c.fill();
+    for (let i = 0; i < 10; i++) { const k = (time * .05 + hash2(i, 77)) % 1, mx = px + (hash2(i, 3) - .5) * 90 * (1 - k), my = lerp(py, top + 30, k); circ(c, mx, my, 1.1, kA('paper', (a * 3).toFixed(3))); }
   }
   hoverObj = null;
   if (S.mode === 'play' && mouse.on && !isTouch && !mouse.held) {
@@ -2618,6 +3127,11 @@ const mm = document.createElement('canvas'); mm.width = 200; mm.height = 150;
   m.setLineDash([]);
   m.fillStyle = D.water; m.beginPath(); m.ellipse(LAKE.x, LAKE.y, LAKE.rx, LAKE.ry, 0, 0, TAU); m.fill();
   m.fillStyle = D.bark; m.fillRect(DOCK.x, DOCK.y, DOCK.w, DOCK.h);
+  m.strokeStyle = D.water; m.lineWidth = 40; m.lineJoin = 'round';
+  for (const L of [CREEK, CREEK2]) { m.beginPath(); L.forEach((q, i) => i ? m.lineTo(q[0], q[1]) : m.moveTo(q[0], q[1])); m.stroke(); }
+  m.fillStyle = D.water; m.beginPath(); for (const [x, y, rx, ry] of POND) { m.moveTo(x + rx, y); m.ellipse(x, y, rx, ry, 0, 0, TAU); } m.fill();
+  m.strokeStyle = D.ink; m.lineWidth = 22; for (const r of [90, 150, 210]) { m.beginPath(); m.arc(AMPHI.x, AMPHI.y + 10, r, .25 * Math.PI, .75 * Math.PI); m.stroke(); }
+  m.fillStyle = D.ink; m.fillRect(AMPHI.x - 60, AMPHI.y - 40, 120, 24); m.fillRect(MILL.x - 86, MILL.y - 64, 172, 64); m.fillRect(BLIND.x - 50, BLIND.y - 16, 100, 22);
   m.fillStyle = D.ink; for (const r of [[1050, 1480, 200, 120], [500, 1620, 220, 160], [2150, 1560, 240, 110]]) m.fillRect(...r);
   for (const t of TENT_DEFS) { m.fillStyle = D[t.ink]; m.beginPath(); m.moveTo(t.x - 50, t.y + 34); m.lineTo(t.x, t.y - 46); m.lineTo(t.x + 50, t.y + 34); m.closePath(); m.fill(); }
   m.fillStyle = D.rust; m.beginPath(); m.arc(FIRE.x, FIRE.y, 40, 0, TAU); m.fill();
@@ -2641,7 +3155,7 @@ function drawMinimap() {
   c.restore();
   c.strokeStyle = DAYK.ink; c.lineWidth = 3; c.strokeRect(x, y, mw, mh);
 }
-const DRAW = { tree: drawTree, bush: drawBush, berry: drawBerry, tent: drawTent, cooler: drawCooler, table: drawTable, fire: drawFire, mallow: drawMallow, shack: drawShack, crates: drawCrates, trash: drawTrash, cabin: drawCabin, donuts: drawDonuts, rv: drawRV, grill: drawGrill, pietable: drawPieTable, chair: drawChair, bucket: drawBucket, den: drawDen, sign: drawSign, magpie: drawMagpie, rock: drawRock, lamp: drawLamp, npc: drawHuman, player: drawPlayer, proj: drawProj, bird: drawBird, arch: drawArch, lookout: drawLookout, bench: drawBench, reeds: drawReeds, outhouse: drawOuthouse, woodpile: drawWoodpile, mapboard: drawMapboard };
+const DRAW = { tree: drawTree, bush: drawBush, berry: drawBerry, tent: drawTent, cooler: drawCooler, table: drawTable, fire: drawFire, mallow: drawMallow, shack: drawShack, crates: drawCrates, trash: drawTrash, cabin: drawCabin, donuts: drawDonuts, rv: drawRV, grill: drawGrill, pietable: drawPieTable, chair: drawChair, bucket: drawBucket, den: drawDen, sign: drawSign, magpie: drawMagpie, rock: drawRock, lamp: drawLamp, npc: drawHuman, player: drawPlayer, proj: drawProj, bird: drawBird, arch: drawArch, lookout: drawLookout, bench: drawBench, reeds: drawReeds, outhouse: drawOuthouse, woodpile: drawWoodpile, mapboard: drawMapboard, stump: drawStump, trailmix: drawTrailmix, deadfall: drawDeadfall, hollowlog: drawHollowLog, blind: drawBlind, plank: drawPlank, lodge: drawLodge, screen: drawScreen, logbench: drawLogbench, cookies: drawCookies, projector: drawProjector, mill: drawMill, logdeck: drawLogdeck, truck: drawTruck };
 const drawList = [];
 function worldXform(c) { c.setTransform(DPR * Z, 0, 0, DPR * Z, -view.x * DPR * Z, -view.y * DPR * Z); }
 function drawBird(c, b) {
@@ -2714,6 +3228,9 @@ const HINTS = {
   hungry: isTouch ? 'Bramble is getting hungry. Tap Eat or visit your den pantry.' : 'Bramble is getting hungry. Press F to eat a carried snack, or visit your den pantry.',
   cones: isTouch ? 'Tap Toss to throw a pinecone. People go check on the noise.' : 'Right-click (or press Q) to toss a pinecone. People go check on the noise.',
   birds: 'Birds scatter when you trot past them, and the flapping draws attention. Tiptoe around them.',
+  creek: 'Wading is slow and splashy. Cross Whisper Creek on the footbridge or along the beaver dam.',
+  beaver: 'Beavers slap their tails when something trots by, and everyone nearby hears it. Tiptoe along the pond.',
+  log: 'The hollow log hides you just like a bush.',
 };
 let incoming = 0;
 function flyToPouch(type, wx, wy) {
@@ -2879,7 +3396,7 @@ function endDay() {
     <h2>Bramble curls up in the den</h2>
     <dl class="stats"><div><dt>Snacks swiped</dt><dd>${d.swiped}</dd></div><div><dt>Shinies found</dt><dd>${d.shinies}</dd></div><div><dt>Times spotted</dt><dd>${d.spotted}</dd></div></dl>
     ${rows ? `<h3>Today’s goals</h3><ul class="recap">${rows}</ul>` : ''}
-    <p class="sub">Snack Journal: ${tasted} of 12 tasted. Every cooler, basket and crate restocks overnight.</p>
+    <p class="sub">Snack Journal: ${tasted} of ${ORDER.length} tasted. Every cooler, basket and crate restocks overnight.</p>
     <div class="row"><button class="btn primary" id="wake" type="button" data-autofocus>Wake up for day ${S.day}</button></div>`, p => {
     p.querySelector('#wake').onclick = async () => {
       modal.classList.remove('top'); closeModal(); await fade(0, 900); S.mode = 'play';
@@ -2931,7 +3448,7 @@ function openJournal() {
   }).join('');
   openModal('journal', `
     <h2>Snack Journal</h2>
-    <p class="sub">${n} of 12 snacks tasted. A snack is recorded once you stash it in your den.</p>
+    <p class="sub">${n} of ${ORDER.length} snacks tasted. A snack is recorded once you stash it in your den.</p>
     <div class="journal">${cards}</div>
     <div class="row"><button class="btn" id="jClose" type="button" data-autofocus>Close</button></div>`, p => { p.querySelector('#jClose').onclick = closeModal; });
 }
@@ -2977,7 +3494,7 @@ function toggleTiptoe() { tipLock = !tipLock; $('#tTip').classList.toggle('on', 
 
 // ---------- game flow ----------
 function resetState() {
-  Object.assign(S, { day: 1, hour: 8, belly: 75, shinies: 2, pinecones: 0, pouch: [], pantry: {}, journal: {}, upgrades: {}, craving: null, cravingDone: false, stats: { swiped: 0, shooed: 0 }, feastSeen: false, hints: {}, dayStats: freshDayStats(), goals: null, tut: 0, weather: 'clear' });
+  Object.assign(S, { day: 1, hour: 8, belly: 75, shinies: 2, pinecones: 0, pouch: [], pantry: {}, journal: {}, upgrades: {}, craving: null, cravingDone: false, stats: { swiped: 0, shooed: 0 }, feastSeen: false, hints: {}, dayStats: freshDayStats(), goals: null, tut: 0, weather: 'clear', found: {} });
   shopVisited = false;
 }
 function newGame() {
@@ -3014,7 +3531,9 @@ function tutorial(dt) {
   at(9, isTouch ? 'Push the stick gently to tiptoe. Trotting makes noise people can hear.' : 'Hold Shift to tiptoe. Trotting makes noise people can hear.');
 }
 function update(dt) {
+  const h0 = S.hour;
   S.hour += dt / 20; if (S.hour >= 24) S.hour -= 24;
+  if (h0 < 18 && S.hour >= 18) toast('Ranger Oakes is heading to the amphitheater for the evening program.', 'good');
   dark = darkAt(S.hour);
   if (S.hour >= 2 && S.hour < 6) { passOut(); return; }
   updatePlayer(dt);
