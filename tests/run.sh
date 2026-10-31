@@ -16,7 +16,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 CHROME="${CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
 OUT=tests/out
-AREAS=(den lookout meadow camp shack ranger sunset amphi rv pond mill arch falls)
+AREAS=(den lookout meadow camp shack ranger sunset amphi rv pond mill arch falls shore homestead)
 HOURS=(9 19.6 22.5)
 EXTRA=(pond@13 amphi@19 camp@21.5)
 
