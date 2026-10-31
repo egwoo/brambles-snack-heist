@@ -188,6 +188,8 @@ body.touch #toasts{top:auto;bottom:300px}
   .bar i{transition:none}
   .btn{transition:none}
 }
+.testing #toasts,.testing #hud,.testing #touch,.testing #titleScreen{display:none!important}
+#testReport{position:absolute;inset:0;z-index:99;margin:0;padding:16px;overflow:auto;background:#fff;color:#111;font:13px/1.45 ui-monospace,Menlo,monospace;white-space:pre-wrap}
 </style>
 
 <div id="app">
@@ -265,6 +267,9 @@ const dist = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
 function angDiff(a, b) { let d = (b - a) % TAU; if (d > Math.PI) d -= TAU; else if (d < -Math.PI) d += TAU; return d; }
 function hash2(x, y) { let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16; return (h >>> 0) / 4294967296; }
 function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+// test mode (?test, driven by tests/run.sh): every random roll comes from a fixed seed and nothing is saved
+const TEST = (() => { try { const q = new URLSearchParams(location.search); return q.has('test') ? { seed: +q.get('seed') || 7, shot: q.get('shot'), sim: q.has('sim'), gaps: q.has('gaps'), blind: false } : null; } catch (e) { return null; } })();
+if (TEST) Math.random = rng(TEST.seed);
 function inRange(h, a, b) { return a <= b ? (h >= a && h < b) : (h >= a || h < b); }
 function segDist(px, py, ax, ay, bx, by) { const dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy; const t = l ? clamp(((px - ax) * dx + (py - ay) * dy) / l, 0, 1) : 0; return Math.hypot(px - (ax + dx * t), py - (ay + dy * t)); }
 
@@ -777,13 +782,22 @@ for (let r = 0; r < GR; r++) for (let c = 0; c < GC; c++) {
 const cellOf = v => clamp(Math.floor(v / CELL), 0, GC - 1);
 const rowOf = v => clamp(Math.floor(v / CELL), 0, GR - 1);
 function isBlocked(c, r) { return c < 0 || r < 0 || c >= GC || r >= GR || blocked[r * GC + c] === 1; }
-function nearestFree(c, r) {
+function clearSeg(ax, ay, bx, by) { const n = Math.ceil(dist(ax, ay, bx, by) / 6); for (let i = 1; i < n; i++) if (hitsSolid(lerp(ax, bx, i / n), lerp(ay, by, i / n), 3)) return false; return true; }
+// nearest open cell; given the exact point (px, py), prefer one with a straight, clear line to it,
+// so a camper heading for a seat comes round to the front of the bench instead of stepping over it
+function nearestFree(c, r, px, py) {
   if (!isBlocked(c, r)) return [c, r];
-  for (let rad = 1; rad < 8; rad++) for (let dr = -rad; dr <= rad; dr++) for (let dc = -rad; dc <= rad; dc++) {
-    if (Math.max(Math.abs(dr), Math.abs(dc)) !== rad) continue;
-    if (!isBlocked(c + dc, r + dr)) return [c + dc, r + dr];
+  let best = null, bs = 1e9;
+  for (let rad = 1; rad < 8; rad++) {
+    for (let dr = -rad; dr <= rad; dr++) for (let dc = -rad; dc <= rad; dc++) {
+      if (Math.max(Math.abs(dr), Math.abs(dc)) !== rad || isBlocked(c + dc, r + dr)) continue;
+      const x = (c + dc) * CELL + 16, y = (r + dr) * CELL + 16;
+      const s = px === undefined ? 0 : dist(x, y, px, py) + (clearSeg(x, y, px, py) ? 0 : 1000);
+      if (s < bs) { bs = s; best = [c + dc, r + dr]; }
+    }
+    if (best && (bs < 1000 || rad >= 3)) return best;
   }
-  return null;
+  return best;
 }
 const gScore = new Float32Array(GC * GR), came = new Int32Array(GC * GR), stamp = new Uint32Array(GC * GR), closedSt = new Uint32Array(GC * GR);
 let curStamp = 0;
@@ -800,7 +814,7 @@ function walkLine(ax, ay, bx, by) {
   return true;
 }
 function findPath(sx, sy, tx, ty) {
-  const s0 = nearestFree(cellOf(sx), rowOf(sy)), t0 = nearestFree(cellOf(tx), rowOf(ty));
+  const s0 = nearestFree(cellOf(sx), rowOf(sy), sx, sy), t0 = nearestFree(cellOf(tx), rowOf(ty), tx, ty);
   if (!s0 || !t0) return null;
   const s = s0[1] * GC + s0[0], t = t0[1] * GC + t0[0];
   curStamp++; heapI.length = 0; heapF.length = 0;
@@ -830,6 +844,7 @@ function findPath(sx, sy, tx, ty) {
   for (let k = t; k !== -1 && k !== s; k = came[k]) cells.push(k);
   cells.reverse();
   const pts = cells.map(k => ({ x: (k % GC) * CELL + 16, y: ((k / GC) | 0) * CELL + 16 }));
+  if (s0[0] !== cellOf(sx) || s0[1] !== rowOf(sy)) pts.unshift({ x: s0[0] * CELL + 16, y: s0[1] * CELL + 16 });   // step out the clear way first
   if (!waterBlocked(tx, ty) && !hitsSolid(tx, ty, 9)) pts.push({ x: tx, y: ty });
   const out = []; let cx = sx, cy = sy, i = 0;
   while (i < pts.length) {
@@ -909,16 +924,16 @@ mkNPC('Dale', { shirt: 'sun', pattern: 'plaid', rolled: 1, pants: 'deep', skin: 
 ]);
 mkNPC('Priya', { shirt: 'water', pattern: 'zip', pants: 'earth', skin: 'skinD', hair: 'ink', hairDo: 'braid', prop: 'binoculars', w: 16 }, {}, [
   { from: 7, to: 10, ...post(1760, 1164, -HALF, { sit: 1, glances: [-1.1, 1.1, 2.6] }) },
-  { from: 10, to: 12, kind: 'wander', pts: CAMP, pause: [2, 5] },
-  { from: 12, to: 16, ...post(BLIND.x - 6, BLIND.y + 30, -HALF, { sit: 1, range: 220, glances: [-1, 1, 2.2, -2.4], every: [4, 8], hold: [1.4, 2.4] }) },
+  { from: 10, to: 11.5, kind: 'wander', pts: CAMP, pause: [2, 5] },
+  { from: 11.5, to: 16, ...post(BLIND.x - 6, BLIND.y + 30, -HALF, { sit: 1, range: 220, glances: [-1, 1, 2.2, -2.4], every: [4, 8], hold: [1.4, 2.4] }) },
   { from: 16, to: 19, ...post(1760, 1164, -HALF, { sit: 1, glances: [-1.1, 1.1, 2.6] }) },
   { from: 19, to: 23.5, ...post(1560, 984, Math.PI, { sit: 1, range: 165, glances: [-.7, .7, -1.3] }) },
   { from: 23.5, to: 7, kind: 'sleep', tent: 'T3' },
 ]);
 mkNPC('Bev', { shirt: 'rust', pattern: 'cardigan', pants: 'bark', skin: 'skinL', hair: 'paper', hairDo: 'bun', glasses: 'specs', w: 19 }, { speed: 56 }, [
   { from: 8, to: 11, ...post(1760, 1076, HALF, { sit: 1, glances: [-1.1, 1.1, -2.6] }) },
-  { from: 11, to: 15, kind: 'wander', pts: [...CAMP, ...MEADOW], pause: [3, 6] },
-  { from: 15, to: 18, ...post(1912, 846, 2.3, { sit: 1, glances: [-1, .9, -2] }) },
+  { from: 11, to: 14.5, kind: 'wander', pts: [...CAMP, ...MEADOW], pause: [3, 6] },
+  { from: 14.5, to: 18, ...post(1912, 846, 2.3, { sit: 1, glances: [-1, .9, -2] }) },
   { from: 18, to: 18.5, ...post(1760, 1076, HALF, { sit: 1, glances: [-1.1, 1.1, -2.6] }) },
   { from: 18.5, to: 20, ...post(SEATS[0][0], SEATS[0][1] + 12, -HALF, { sit: 1, talk: 1, range: 150, glances: [-.8, .8, Math.PI], every: [5, 9], hold: [1.2, 2] }) },
   { from: 20, to: 22, ...post(1760, 1076, HALF, { sit: 1, glances: [-1.1, 1.1, -2.6] }) },
@@ -931,8 +946,8 @@ mkNPC('Milo', { shirt: 'paper', pattern: 'stripe', pants: 'water', shorts: 1, sk
   { from: 20.5, to: 8, kind: 'sleep', tent: 'T2' },
 ]);
 mkNPC('Gus', { shirt: 'moss', pants: 'deep', waders: 1, vest: 'earth', skin: 'skinD', hair: 'stone', hairDo: 'short', beard: 1, hat: 'bucket', w: 21, belly: 2 }, { speed: 60 }, [
-  { from: 6, to: 19, ...post(2430, 722, -HALF, { rod: 1, glances: [Math.PI, -.5, .5, Math.PI], every: [5, 10], hold: [1.6, 2.6] }) },
-  { from: 19, to: 21, ...post(1480, 910, HALF, { sit: 1, range: 165, glances: [-.8, .8] }) },
+  { from: 6, to: 18.5, ...post(2430, 722, -HALF, { rod: 1, glances: [Math.PI, -.5, .5, Math.PI], every: [5, 10], hold: [1.6, 2.6] }) },
+  { from: 18.5, to: 21, ...post(1480, 910, HALF, { sit: 1, range: 165, glances: [-.8, .8] }) },
   { from: 21, to: 6, kind: 'sleep', tent: 'T5' },
 ]);
 mkNPC('Ron', { shirt: 'rust', pants: 'ink', apron: 1, skin: 'skinD', hair: 'bark', hairDo: 'short', mustache: 1, hat: 'chef', w: 23, belly: 5 }, {}, [
@@ -992,8 +1007,8 @@ function snapshot() {
   return { day: S.day, hour: S.hour, belly: S.belly, shinies: S.shinies, pinecones: S.pinecones, pouch: S.pouch.slice(), pantry: S.pantry, journal: S.journal,
     upgrades: S.upgrades, craving: S.craving, cravingDone: S.cravingDone, stats: S.stats, feastSeen: S.feastSeen, hints: S.hints, muted, vol: S.vol, dayStats: S.dayStats, goals: S.goals, tut: S.tut, weather: S.weather, found: S.found };
 }
-function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot())); } catch (e) { /* storage unavailable */ } }
-function loadSave() { try { const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+function save() { if (TEST) return; try { localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot())); } catch (e) { /* storage unavailable */ } }
+function loadSave() { if (TEST) return null; try { const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
 function applySave(d) {
   S.day = d.day || 1; S.hour = typeof d.hour === 'number' ? d.hour : 8; S.belly = d.belly ?? 75; S.shinies = d.shinies ?? 0; S.pinecones = d.pinecones ?? 0;
   S.pouch = Array.isArray(d.pouch) ? d.pouch.filter(k => SNACKS[k]) : []; S.pantry = d.pantry || {}; S.journal = d.journal || {}; S.upgrades = d.upgrades || {};
@@ -1059,6 +1074,8 @@ const AREAS = [
   { id: 'mill', name: 'Old Mill', sub: 'Abandoned logging camp', x: 400, y: 2180, r: 300, far: 1 },
   { id: 'arch', name: 'Park Entrance', sub: 'Pinewhistle Lake, est. 1923', x: 1560, y: 2060, r: 150, far: 1 },
 ];
+// beacons: things meant to be seen from far off (smoke, flags, mist, birds); tests/run.sh gaps counts them as landmarks
+const BEACONS = [];
 let areaNow = null, card = null;
 function updateArea() {
   let best = null, bd = 1;
@@ -1139,7 +1156,8 @@ function setTask(n, t) {
 function nextLeg(n) {
   const t = n.task;
   if (t.kind === 'patrol') { n.pidx = (n.pidx + 1) % t.pts.length; goTo(n, t.pts[n.pidx][0], t.pts[n.pidx][1]); return; }
-  let p, tries = 0; do { p = pick(t.pts); } while (tries++ < 6 && dist(p[0], p[1], n.x, n.y) < 60);
+  const taken = q => npcs.some(m => m !== n && !m.inside && (dist(m.x, m.y, q[0], q[1]) < 40 || (m.path && m.path.length && dist(m.path[m.path.length - 1].x, m.path[m.path.length - 1].y, q[0], q[1]) < 40)));
+  let p, tries = 0; do { p = pick(t.pts); } while (tries++ < 10 && (dist(p[0], p[1], n.x, n.y) < 60 || taken(p)));
   goTo(n, p[0], p[1]);
 }
 function arrive(n) {
@@ -1232,7 +1250,7 @@ function visionOf(n) {
   return { range, half, flash };
 }
 function canSee(n, vis) {
-  if (P.hidden || S.mode !== 'play') return false;
+  if (P.hidden || S.mode !== 'play' || (TEST && TEST.blind)) return false;
   const d = dist(n.x, n.y, P.x, P.y);
   const prox = P.tiptoe ? (S.upgrades.soft ? 13 : 19) : (S.upgrades.soft ? 30 : 44);
   if (d < prox) return true;
@@ -3732,9 +3750,115 @@ function showTitle() {
   sizePoster(); posterLoop();
 }
 
+// ---------- test mode ----------
+// tests/run.sh opens index.html in headless Chrome with one of these (all with ?test, so randomness is seeded):
+//   &shot=pond@19.5   a still of one area at that hour, after three seconds of warm-up
+//   &sim              a whole day for the campers: who is late, stuck, piled up, or walking through water or walls
+//   &gaps             trail stretches and patches of woods with no landmark in view (the 30-second rule)
+// Plain ?test is the normal game with a fixed seed and no saving.
+function report(lines) {
+  const pre = document.createElement('pre'); pre.id = 'testReport'; pre.textContent = lines.join('\n');
+  document.body.appendChild(pre); document.title = 'TEST DONE';
+}
+function testShot(spec) {
+  const [id, hs] = spec.split('@'), a = AREAS.find(q => q.id === id);
+  if (!a) { report([`No area called "${id}". Areas: ${AREAS.map(q => q.id).join(', ')}`]); return; }
+  S.hour = hs ? +hs : 10; dark = darkAt(S.hour); restock(); spawnShinies(); placeNPCs();
+  const f = nearestFree(cellOf(a.x + (a.shot ? a.shot[0] : 0)), rowOf(a.y + (a.shot ? a.shot[1] : 70)));
+  P.x = f[0] * CELL + 16; P.y = f[1] * CELL + 16; P.face = HALF;
+  S.mode = 'play'; TEST.blind = true; updateCamera(0, true);
+  for (let i = 0; i < 90; i++) { const dt = 1 / 30; time += dt; update(dt); updateFX(dt); updateCamera(dt, false); }
+  card = null; document.title = 'TEST DONE';
+  const still = () => { resize(); render(); requestAnimationFrame(still); };   // time stands still; redraw in case the window resizes
+  still();
+}
+// more than a pixel or two inside a wall or bench (brushing a corner doesn't count)
+function insideSolid(x, y) { return nearSolids(x, y).some(s => s.r !== undefined ? dist(x, y, s.x, s.y) < s.r - 2 : x > s.x + 2 && x < s.x + s.w - 2 && y > s.y + 1.5 && y < s.y + s.h - 1.5); }
+function testSim() {
+  S.hour = 6; dark = darkAt(6); restock(); spawnShinies(); placeNPCs();
+  P.x = DEN.x; P.y = DEN.y + 42; S.mode = 'play'; TEST.blind = true;
+  const dt = 1 / 30, out = [], seen = new Set(), hm = h => clockStr(h % 24);
+  const flag = (key, msg) => { if (!seen.has(key)) { seen.add(key); out.push('  ' + msg); } };
+  const fixed = t => t.kind !== 'wander' && t.kind !== 'patrol';
+  const where = t => t.x !== undefined ? `${Math.round(t.x)},${Math.round(t.y)}` : 'their route';
+  const T = npcs.map(n => ({ task: n.task, start: 6, done: true, px: n.x, py: n.y, still: 0, log: [] }));
+  const close = new Float32Array(npcs.length * npcs.length);
+  for (let i = 0, h = 6; h < 26; i++) {
+    time += dt; h += dt / 20; S.hour = h % 24; dark = darkAt(S.hour);
+    for (const n of npcs) updateNPC(n, dt);
+    updateLife(dt);
+    npcs.forEach((n, k) => {
+      const t = T[k];
+      if (n.task !== t.task) {
+        if (!t.done && fixed(t.task)) flag(`miss${k}@${t.start}`, `${n.name} never reached their ${t.task.kind} at ${where(t.task)} (${hm(t.start)} to ${hm(h)})`);
+        Object.assign(t, { task: n.task, start: h, done: false });
+      }
+      if (!t.done && n.arrived) {
+        t.done = true;
+        if (fixed(t.task)) { const late = Math.round((h - t.start) * 60); t.log.push(`${t.task.kind} ${hm(t.start)} +${late}m`); if (late > 75) flag(`late${k}@${t.start}`, `${n.name} took ${late} game minutes to reach their ${t.task.kind} at ${where(t.task)} (set off ${hm(t.start)})`); }
+      }
+      if (n.inside) return;
+      if (waterBlocked(n.x, n.y)) flag(`water${k}`, `${n.name} walked into water at ${Math.round(n.x)},${Math.round(n.y)} (${hm(h)})`);
+      if (insideSolid(n.x, n.y)) flag(`wall${k}@${Math.round(n.x / 64)},${Math.round(n.y / 64)}`, `${n.name} walked through something solid at ${Math.round(n.x)},${Math.round(n.y)} (${hm(h)})`);
+      if (n.x < 0 || n.y < 0 || n.x > W || n.y > H) flag(`off${k}`, `${n.name} left the map at ${Math.round(n.x)},${Math.round(n.y)} (${hm(h)})`);
+      if (i % 30 === 0) {
+        const wants = n.path && n.pi < n.path.length && n.mode === 'routine';
+        t.still = wants && dist(n.x, n.y, t.px, t.py) < 3 ? t.still + 1 : 0; t.px = n.x; t.py = n.y;
+        if (t.still === 5) flag(`stuck${k}@${Math.round(h)}`, `${n.name} is stuck at ${Math.round(n.x)},${Math.round(n.y)} (${hm(h)})`);
+      }
+    });
+    for (let a = 0; a < npcs.length; a++) for (let b = a + 1; b < npcs.length; b++) {
+      const A = npcs[a], B = npcs[b], j = a * npcs.length + b;
+      if (!A.inside && !B.inside && dist(A.x, A.y, B.x, B.y) < 16) { close[j] += dt; if (close[j] > 3) flag(`pile${j}@${Math.round(h)}`, `${A.name} and ${B.name} are standing in each other at ${Math.round(A.x)},${Math.round(A.y)} (${hm(h)})`); }
+      else close[j] = 0;
+    }
+  }
+  report([out.length ? `${out.length} problem(s) in one simulated day (6 am to 2 am):` : 'No problems: everyone reached every stop, nobody got stuck or walked through water or walls.', ...out, '', 'Arrivals (stop, set off, minutes to get there):', ...npcs.map((n, k) => `  ${n.name}: ${T[k].log.join(' · ') || 'no fixed stops'}`)]);
+}
+function testGaps() {
+  const marks = [...AREAS, ...BEACONS], R = 560, trot = 152, out = [];
+  const inView = (x, y) => marks.some(m => dist(x, y, m.x, m.y) < R);
+  out.push(`Landmarks within ${R} px count as in view. Bramble trots ${trot} px/s, so 30 s is about ${30 * trot} px.`, '', 'Longest stretch of each trail with nothing in view:');
+  PATHS.forEach(p => {
+    let run = 0, best = 0, bx = 0, by = 0;
+    for (let i = 0; i < p.pts.length - 1; i++) {
+      const [ax, ay] = p.pts[i], [qx, qy] = p.pts[i + 1], n = Math.ceil(dist(ax, ay, qx, qy) / 16);
+      for (let s = 0; s < n; s++) { const x = lerp(ax, qx, s / n), y = lerp(ay, qy, s / n); run = inView(x, y) ? 0 : run + dist(ax, ay, qx, qy) / n; if (run > best) { best = run; bx = x; by = y; } }
+    }
+    const sec = Math.round(best / trot);
+    out.push(`  ${sec > 30 ? 'TOO LONG' : 'ok      '} ${String(sec).padStart(3)} s  trail from ${p.pts[0].join(',')} to ${p.pts[p.pts.length - 1].join(',')}${best ? `, ends near ${Math.round(bx)},${Math.round(by)}` : ''}`);
+  });
+  const G = 80, cols = Math.ceil(W / G), rows = Math.ceil(H / G), dead = new Uint8Array(cols * rows);
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { const x = c * G + G / 2, y = r * G + G / 2; dead[r * cols + c] = !waterBlocked(x, y) && !inView(x, y) ? 1 : 0; }
+  const blobs = [], seenC = new Uint8Array(cols * rows);
+  for (let i = 0; i < dead.length; i++) {
+    if (!dead[i] || seenC[i]) continue;
+    const st = [i], cells = []; seenC[i] = 1;
+    while (st.length) { const j = st.pop(); cells.push(j); const c = j % cols, r = (j - c) / cols; for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const cc = c + dc, rr = r + dr, q = rr * cols + cc; if (cc >= 0 && rr >= 0 && cc < cols && rr < rows && dead[q] && !seenC[q]) { seenC[q] = 1; st.push(q); } } }
+    const cx = cells.reduce((s, j) => s + (j % cols), 0) / cells.length * G + G / 2, cy = cells.reduce((s, j) => s + Math.floor(j / cols), 0) / cells.length * G + G / 2;
+    blobs.push({ n: cells.length, cx, cy });
+  }
+  blobs.sort((a, b) => b.n - a.n);
+  const total = dead.reduce((s, v) => s + v, 0);
+  out.push('', `Woods with no landmark in view: ${Math.round(total / dead.length * 100)}% of the map. Biggest patches:`);
+  for (const b of blobs.slice(0, 6)) out.push(`  ${String(Math.round(b.n * G * G / 10000)).padStart(4)} (100 px)² around ${Math.round(b.cx)},${Math.round(b.cy)}`);
+  report(out);
+}
+function runTest() {
+  resetState(); S.tut = TUT.length; S.goals = []; tutT = 99;
+  if (TEST.shot || TEST.sim || TEST.gaps) {
+    document.body.classList.add('testing');
+    if (TEST.shot) testShot(TEST.shot); else if (TEST.sim) testSim(); else testGaps();
+    return;
+  }
+  restock(); spawnShinies(); pickCraving(); placeNPCs(); beginPlay(false);
+  requestAnimationFrame(t => { last = t; requestAnimationFrame(frame); });
+}
+
 // ---------- boot ----------
 function start(data) {
   resize(); buildIcons(); buildTextures(); drawSky(8);
+  if (TEST) { runTest(); return; }
   const saved = data && data.save;
   if (saved && data.playing) { applySave(saved); restock(); spawnShinies(); if (!S.craving) pickCraving(); placeNPCs(); beginPlay(false, data.px, data.py); }
   else showTitle();
