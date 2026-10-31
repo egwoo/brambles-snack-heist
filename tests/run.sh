@@ -6,7 +6,9 @@
 #                                  With a ref (HEAD, HEAD~1, a commit), also render that version into
 #                                  tests/out/old and write tests/out/report.html comparing the two.
 #                                  (Versions from before test mode existed can't be rendered.)
-#   tests/run.sh shot pond@19.5    Render one area at one hour to tests/out/new/pond@19.5.png
+#   tests/run.sh shot pond@19.5 [scene]
+#                                  Render one area at one hour to tests/out/new/pond@19.5.png; a scene
+#                                  (wary, mud, bend: see SCENES in index.html) sets up a moment first.
 #   tests/run.sh sim [seeds]       Simulate a whole day (default: seeds 7, 11 and 23) and list campers who
 #                                  are very late, stuck, piled up, or walking through water or walls.
 #   tests/run.sh gaps              List trail stretches and patches of woods with no landmark in view.
@@ -53,8 +55,9 @@ case "${1:-}" in
       python3 -I tests/compare.py "$OUT/old" "$OUT/new" "$OUT/report.html"
     fi ;;
   shot)
-    mkdir -p "$OUT/new"; chrome --screenshot="$OUT/new/$2.png" "$(page index.html "shot=$2")" >/dev/null
-    echo "$OUT/new/$2.png" ;;
+    name="$2${3:+-$3}"; mkdir -p "$OUT/new"
+    chrome --screenshot="$OUT/new/$name.png" "$(page index.html "shot=$2${3:+&scene=$3}")" >/dev/null
+    echo "$OUT/new/$name.png" ;;
   sim) for seed in ${2:-7 11 23}; do echo "== seed $seed"; text_report "sim&seed=$seed"; echo; done ;;
   gaps) text_report gaps ;;
   *) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;

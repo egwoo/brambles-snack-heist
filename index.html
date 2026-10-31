@@ -86,6 +86,7 @@ kbd{font:700 10px var(--body);padding:1px 5px;border:1px solid rgba(243,231,201,
 .toast.good{box-shadow:4px 4px 0 var(--pine)}
 .toast.danger{box-shadow:4px 4px 0 var(--rust)}
 .toast.gold{box-shadow:4px 4px 0 var(--sun)}
+.toast.warn{box-shadow:4px 4px 0 var(--rust)}
 .toast.out{opacity:0;transform:translateY(-6px)}
 @keyframes tin{from{opacity:0;transform:translateY(-8px)}}
 
@@ -268,7 +269,7 @@ function angDiff(a, b) { let d = (b - a) % TAU; if (d > Math.PI) d -= TAU; else 
 function hash2(x, y) { let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16; return (h >>> 0) / 4294967296; }
 function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 // test mode (?test, driven by tests/run.sh): every random roll comes from a fixed seed and nothing is saved
-const TEST = (() => { try { const q = new URLSearchParams(location.search); return q.has('test') ? { seed: +q.get('seed') || 7, shot: q.get('shot'), sim: q.has('sim'), gaps: q.has('gaps'), blind: false } : null; } catch (e) { return null; } })();
+const TEST = (() => { try { const q = new URLSearchParams(location.search); return q.has('test') ? { seed: +q.get('seed') || 7, shot: q.get('shot'), scene: q.get('scene'), sim: q.has('sim'), gaps: q.has('gaps'), blind: false } : null; } catch (e) { return null; } })();
 if (TEST) Math.random = rng(TEST.seed);
 function inRange(h, a, b) { return a <= b ? (h >= a && h < b) : (h >= a || h < b); }
 function segDist(px, py, ax, ay, bx, by) { const dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy; const t = l ? clamp(((px - ax) * dx + (py - ay) * dy) / l, 0, 1) : 0; return Math.hypot(px - (ax + dx * t), py - (ay + dy * t)); }
@@ -986,7 +987,7 @@ const SAVE_KEY = 'bramble-snack-heist-v1';
 const S = {
   mode: 'title', day: 1, hour: 8, belly: 75, shinies: 2, pinecones: 0, pouch: [], pantry: {}, journal: {}, upgrades: {},
   craving: null, cravingDone: false, stats: { swiped: 0, shooed: 0 }, feastSeen: false, hints: {},
-  dayStats: { swiped: 0, spotted: 0, shinies: 0, stashed: 0, decoys: 0, types: {} }, vol: { music: .7, sfx: .9 }, goals: null, tut: 0, weather: 'clear', found: {},
+  dayStats: { swiped: 0, spotted: 0, shinies: 0, stashed: 0, decoys: 0, types: {} }, vol: { music: .7, sfx: .9 }, goals: null, tut: 0, weather: 'clear', found: {}, heat: {},
 };
 const raining = () => S.weather === 'rain';
 const hush = () => (S.upgrades.soft ? .5 : 1) * (raining() ? .6 : 1);
@@ -1015,7 +1016,7 @@ function warmAt(h) { return Math.max(0, 1 - Math.abs(h - 18.9) / 1.5) * .16 + Ma
 
 function snapshot() {
   return { day: S.day, hour: S.hour, belly: S.belly, shinies: S.shinies, pinecones: S.pinecones, pouch: S.pouch.slice(), pantry: S.pantry, journal: S.journal,
-    upgrades: S.upgrades, craving: S.craving, cravingDone: S.cravingDone, stats: S.stats, feastSeen: S.feastSeen, hints: S.hints, muted, vol: S.vol, dayStats: S.dayStats, goals: S.goals, tut: S.tut, weather: S.weather, found: S.found };
+    upgrades: S.upgrades, craving: S.craving, cravingDone: S.cravingDone, stats: S.stats, feastSeen: S.feastSeen, hints: S.hints, muted, vol: S.vol, dayStats: S.dayStats, goals: S.goals, tut: S.tut, weather: S.weather, found: S.found, heat: S.heat };
 }
 function save() { if (TEST) return; try { localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot())); } catch (e) { /* storage unavailable */ } }
 function loadSave() { if (TEST) return null; try { const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
@@ -1026,7 +1027,7 @@ function applySave(d) {
   muted = !!d.muted;
   if (d.vol) S.vol = { music: clamp(+d.vol.music || 0, 0, 1), sfx: clamp(+d.vol.sfx || 0, 0, 1) };
   S.dayStats = Object.assign(freshDayStats(), d.dayStats || {});
-  S.goals = Array.isArray(d.goals) ? d.goals : null; S.tut = typeof d.tut === 'number' ? d.tut : 99; S.weather = d.weather === 'rain' ? 'rain' : 'clear'; S.found = d.found || {};
+  S.goals = Array.isArray(d.goals) ? d.goals : null; S.tut = typeof d.tut === 'number' ? d.tut : 99; S.weather = d.weather === 'rain' ? 'rain' : 'clear'; S.found = d.found || {}; S.heat = d.heat && typeof d.heat === 'object' ? d.heat : {};
   if (S.hour >= 2 && S.hour < 6) S.hour = 7;
 }
 
@@ -1034,6 +1035,7 @@ function applySave(d) {
 function restock() {
   for (const o of loot) for (const k in o.types) o.stocks[k] = o.types[k];
   for (const c of conePiles) c.n = c.max;
+  applyHeat();
 }
 function spawnShinies() {
   const spots = SHINY_SPOTS.slice().sort(() => Math.random() - .5);
@@ -1052,7 +1054,49 @@ const freshDayStats = () => ({ swiped: 0, spotted: 0, shinies: 0, stashed: 0, de
 function newDay() {
   S.day++; S.hour = 7; S.belly = Math.max(20, S.belly - 20); S.dayStats = freshDayStats();
   S.weather = S.day >= 3 && S.weather !== 'rain' && Math.random() < .3 ? 'rain' : 'clear';
+  coolOff();
   restock(); spawnShinies(); pickCraving(); if (S.tut >= TUT.length) S.goals = makeGoals(); placeNPCs(); save();
+}
+
+// ---------- campground memory ----------
+// Thefts and sightings warm a place up. A warm place latches its food (slower and noisier to open) and its campers
+// watch a little harder; a hot place gets added to Ranger Oakes's rounds. Every night it all cools by half.
+const WARY = { theft: 1, chase: 1.2, latch: 3, patrol: 5, cool: .5, watch: .15, slow: 1.7 };
+const LATCHABLE = new Set(['cooler', 'picnic basket', 'snack crates', 'trash can', 'donut box', 'pie', 'fish bucket', 'trail mix', 'cookie tray', 'marshmallow bag']);
+const RANGER_BASE = RANGER_ROUTE.slice();
+function areaAt(x, y) { let best = null, bd = 1.3; for (const a of AREAS) { const d = dist(x, y, a.x, a.y) / a.r; if (d < bd) { bd = d; best = a; } } return best; }
+const heatOf = a => (a && S.heat[a.id]) || 0;
+function moodOf(a) { const h = heatOf(a); return h >= WARY.patrol ? 'alert' : h >= WARY.latch ? 'wary' : 'calm'; }
+function heatUp(x, y, amt) {
+  const a = areaAt(x, y); if (!a || a.id === 'den') return;
+  const before = heatOf(a); S.heat[a.id] = before + amt;
+  if (before < WARY.latch && S.heat[a.id] >= WARY.latch) toast(`Word is getting around ${a.name}. Campers are latching their food.`, 'warn');
+  else if (before < WARY.patrol && S.heat[a.id] >= WARY.patrol) toast(`Ranger Oakes is adding ${a.name} to his rounds.`, 'warn');
+  applyHeat();
+}
+function applyHeat() {
+  for (const o of loot) { const a = areaAt(o.x, o.y); o.latched = LATCHABLE.has(o.label) && heatOf(a) >= WARY.latch; }
+  RANGER_ROUTE.length = 0; RANGER_ROUTE.push(...RANGER_BASE);
+  for (const a of AREAS) {
+    if (heatOf(a) < WARY.patrol) continue;
+    const f = nearestFree(cellOf(a.x), rowOf(a.y + 40)); if (!f) continue;
+    const w = [f[0] * CELL + 16, f[1] * CELL + 16];
+    let bi = 0, bd = 1e9; RANGER_ROUTE.forEach((q, i) => { const d = dist(q[0], q[1], w[0], w[1]); if (d < bd) { bd = d; bi = i; } });
+    RANGER_ROUTE.splice(bi + 1, 0, w, RANGER_ROUTE[bi]);   // a there-and-back detour from the nearest stop on his loop
+  }
+}
+function coolOff() {
+  const calmed = [];
+  for (const id in S.heat) { const was = S.heat[id]; S.heat[id] = was * WARY.cool; if (was >= WARY.latch && S.heat[id] < WARY.latch) calmed.push(AREAS.find(a => a.id === id)); if (S.heat[id] < .3) delete S.heat[id]; }
+  if (calmed.length) setTimeout(() => toast(`Things have calmed down at ${calmed.map(a => a.name).join(' and ')}.`, 'good'), 1600);
+}
+function drawLatch(c, o) {
+  const L = o.loot, x = L.x + 13, y = L.y - 2, sw = Math.sin(time * 2 + L.x) * .08;
+  c.save(); c.translate(x, y); c.rotate(sw);
+  c.strokeStyle = K.ink; c.lineWidth = 2; c.beginPath(); c.arc(0, -4, 3.6, Math.PI, 0); c.stroke();
+  keyed(c, () => rrect(c, -5, -4, 10, 8.5, 1.6), K.sun, K.ink, 1.3);
+  circ(c, 0, 0, 1.2, K.ink);
+  c.restore();
 }
 
 // ---------- goals ----------
@@ -1095,7 +1139,7 @@ function updateArea() {
   S.dayStats.visited[best.id] = 1;
   const fresh = !S.found[best.id];
   if (fresh) { S.found[best.id] = 1; if (best.id !== 'den') { S.shinies++; floater(P.x, P.y - 50, '+1 shiny', 'sun'); SFX.discover(); } }
-  if (fresh || time - (best.shown ?? -99) > 60) { best.shown = time; card = { a: best, t: time, fresh: fresh && best.id !== 'den' }; }
+  if (fresh || time - (best.shown ?? -99) > 60) { best.shown = time; const m = moodOf(best); card = { a: best, t: time, fresh: fresh && best.id !== 'den', mood: m === 'alert' ? 'On alert · the ranger is watching' : m === 'wary' ? 'Wary · food is latched' : '' }; }
 }
 const GOAL_KINDS = {
   swipe: { make: () => { const n = 4 + Math.floor(Math.random() * 3); return { text: `Swipe ${n} snacks`, need: n, reward: 2 }; }, prog: () => S.dayStats.swiped },
@@ -1207,7 +1251,7 @@ function doInvestigate(n, dt) {
 function startChase(n) {
   n.mode = 'chase'; n.alert = 1; n.sitting = false; n.repath = 0; n.lost = 0; n.popT = time;
   SFX.alarm(); hint('chase'); shake(FEEL.shake.chase); freeze(FEEL.freeze.spotted); say(n, 'chase', true);
-  S.dayStats.spotted++;
+  S.dayStats.spotted++; heatUp(n.x, n.y, WARY.chase);
   for (const m of npcs) if (m !== n && !m.inside && m.mode !== 'chase' && dist(m.x, m.y, n.x, n.y) < 260) { m.alert = Math.max(m.alert, .3); investigate(m, P.x, P.y); m.popT = time; say(m, 'shout'); }
 }
 function doChase(n, dt, seen) {
@@ -1254,6 +1298,7 @@ function visionOf(n) {
     else range *= .6;
   }
   if (raining()) range *= .85;
+  if (heatOf(areaAt(n.x, n.y)) >= WARY.latch) range *= 1 + WARY.watch;
   if (settled && t.reading && !n.glancing) { range = Math.min(range, 70); half = .5; }
   if (n.mode === 'chase') { range *= 1.2; half *= 1.15; }
   else if (n.mode !== 'routine') range *= 1.1;
@@ -1367,7 +1412,8 @@ function lootState(o) {
 function startRummage(o, quiet) {
   const st = lootState(o);
   if (!st.ok) { if (!quiet) { toast(st.msg); if (st.full) hint('full'); } return; }
-  P.rum = { o, t: 0, tick: .15, need: o.need * (S.upgrades.quick ? .5 : 1) };
+  P.rum = { o, t: 0, tick: .15, need: o.need * (S.upgrades.quick ? .5 : 1) * (o.latched ? WARY.slow : 1) };
+  if (o.latched) hint('latch');
   if (o.noise === 'clang') { makeNoise(o.x, o.y, 220 * (S.upgrades.soft ? .68 : 1) * (raining() ? .7 : 1), true); SFX.clang(); shake(FEEL.shake.clang); }
 }
 function finishRummage(o) {
@@ -1375,6 +1421,7 @@ function finishRummage(o) {
   o.stocks[type]--; S.pouch.push(type); S.stats.swiped++; S.dayStats.swiped++; S.dayStats.types[type] = (S.dayStats.types[type] || 0) + 1;
   SFX.pickup(); burst(o.x, o.y - 16, KR.sun.join(), 12);
   freeze(FEEL.freeze.grab); shake(FEEL.shake.grab); P.sq = FEEL.squash.grab; P.sqV = 0;
+  if (LATCHABLE.has(o.label)) heatUp(o.x, o.y, WARY.theft);
   floater(o.x, o.y - 34, SNACKS[type].name, 'sun');
   flyToPouch(type, o.x, o.y - 20);
   if (!S.journal[type] && !S.pouch.slice(0, -1).includes(type)) toast(`New snack: ${SNACKS[type].name}! Take it home to record it.`, 'good');
@@ -1521,7 +1568,7 @@ function updatePlayer(dt) {
     if (!held || P.near !== P.rum.o) P.rum = null;
     else {
       const r = P.rum; r.t += dt; r.tick -= dt;
-      if (r.tick <= 0) { r.tick = .45; if (r.o.noise === 'soft') makeNoise(r.o.x, r.o.y, 64 * hush(), false); SFX.rustle(.45); puff(r.o.x, r.o.y - 12, 'leaf'); }
+      if (r.tick <= 0) { r.tick = .45; if (r.o.noise === 'soft') makeNoise(r.o.x, r.o.y, (r.o.latched ? 96 : 64) * hush(), false); SFX.rustle(.45); puff(r.o.x, r.o.y - 12, 'leaf'); }
       if (r.t >= r.need) { finishRummage(r.o); P.rum = null; }
     }
   }
@@ -3154,6 +3201,11 @@ function drawCard(c) {
   c.font = `700 ${small ? 10 : 11}px "Zilla Slab", Georgia, serif`; if ('letterSpacing' in c) c.letterSpacing = '1.5px';
   c.fillStyle = D.bark; c.fillText((card.a.sub || '').toUpperCase(), cx, cy + (small ? 13 : 16));
   if ('letterSpacing' in c) c.letterSpacing = '0px';
+  if (card.mood) {   // the campground remembers: a rust ribbon under the plaque
+    const t = card.mood.toUpperCase(); c.font = `700 ${small ? 10 : 11}px "Zilla Slab", Georgia, serif`;
+    const tw = c.measureText(t).width + 26, ry = cy + h / 2 + 4;
+    fillRR(c, cx - tw / 2, ry, tw, 20, 3, D.rust); c.fillStyle = D.paper; c.fillText(t, cx, ry + 10.5);
+  }
   if (card.fresh) {
     c.translate(cx + w / 2 - 30, cy - h / 2 - 2); c.rotate(-.12);
     fillRR(c, -40, -11, 80, 22, 3, D.rust); c.strokeStyle = D.paper; c.lineWidth = 1.4; rrect(c, -37, -8, 74, 16, 2); c.stroke();
@@ -3312,7 +3364,7 @@ function render() {
   for (const p of projs) drawList.push(p);
   for (const b of birds) if (b.x > x0 - 30 && b.x < x1 + 30 && b.y > y0 - 10 && b.y < y1 + 160) { b.sortY = b.state === 'fly' ? 1e6 : b.y; drawList.push(b); }
   drawList.sort((a, b) => a.sortY - b.sortY);
-  for (const o of drawList) DRAW[o.kind](ctx, o);
+  for (const o of drawList) { DRAW[o.kind](ctx, o); if (o.loot && o.loot.latched && (!o.loot.avail || o.loot.avail(S.hour))) drawLatch(ctx, o); }
   drawClouds(x0, y0, x1, y1);
   drawDarkness();
   if (dark > .25) drawCones(true);
@@ -3344,6 +3396,7 @@ const HINTS = {
   creek: 'Wading is slow and splashy. Cross Whisper Creek on the footbridge or along the beaver dam.',
   beaver: 'Beavers slap their tails when something trots by, and everyone nearby hears it. Tiptoe along the pond.',
   log: 'The hollow log hides you just like a bush.',
+  latch: 'Latched! Campers here are on to you, so their food is slower and noisier to open. It calms down overnight.',
   mud: 'Muddy feet! Bramble leaves tracks for a while after wading.',
   tracks: 'Ranger Oakes is following your muddy tracks. Lead him somewhere useless, or wait for them to dry.',
   rustle: 'Trotting through bushes makes them thrash, and campers notice. Tiptoe into your hiding spots.',
@@ -3419,7 +3472,7 @@ function updateHUD() {
     else if (o.kind === 'magpie') pr = `${press} to trade shinies with Mags`;
     else if (o.kind === 'lookout') pr = `${press} to climb the fire lookout`;
     else if (o.kind === 'cones') { pr = o.n > 0 ? `${press} to gather pinecones (${o.n})` : 'No pinecones left here today'; warn = o.n <= 0; }
-    else { const st = lootState(o); if (st.ok) pr = P.rum ? `Rummaging the ${o.label}…` : `${hold} to rummage the ${o.label}`; else { pr = st.msg; warn = true; } }
+    else { const st = lootState(o); if (st.ok) pr = P.rum ? (o.latched ? `Working the latch on the ${o.label}…` : `Rummaging the ${o.label}…`) : o.latched ? `${hold} to unlatch the ${o.label} (slow and rattly)` : `${hold} to rummage the ${o.label}`; else { pr = st.msg; warn = true; } }
   }
   if (hudCache.prompt !== pr) { hudCache.prompt = pr; const el = $('#prompt'); el.hidden = !pr; el.textContent = pr; el.classList.toggle('warn', warn); }
   const tg = P.hidden ? 'Hidden in a bush' : P.tiptoe ? 'Tiptoeing' : '';
@@ -3556,6 +3609,11 @@ function openShop() {
     });
   });
 }
+function moodHTML() {
+  const hot = AREAS.filter(a => moodOf(a) !== 'calm');
+  if (!hot.length) return '';
+  return `<p class="sub"><strong>The campground remembers.</strong> ${hot.map(a => `${a.name} is ${moodOf(a) === 'alert' ? 'on alert, and Ranger Oakes is checking it on his rounds' : 'wary, and the food there is latched'}`).join('; ')}. Things cool down by half every night.</p>`;
+}
 function openJournal() {
   const n = ORDER.filter(k => S.journal[k]).length;
   const cards = ORDER.map(k => {
@@ -3566,6 +3624,7 @@ function openJournal() {
     <h2>Snack Journal</h2>
     <p class="sub">${n} of ${ORDER.length} snacks tasted. A snack is recorded once you stash it in your den.</p>
     <div class="journal">${cards}</div>
+    ${moodHTML()}
     <div class="row"><button class="btn" id="jClose" type="button" data-autofocus>Close</button></div>`, p => { p.querySelector('#jClose').onclick = closeModal; });
 }
 function controlsHTML() {
@@ -3610,7 +3669,7 @@ function toggleTiptoe() { tipLock = !tipLock; $('#tTip').classList.toggle('on', 
 
 // ---------- game flow ----------
 function resetState() {
-  Object.assign(S, { day: 1, hour: 8, belly: 75, shinies: 2, pinecones: 0, pouch: [], pantry: {}, journal: {}, upgrades: {}, craving: null, cravingDone: false, stats: { swiped: 0, shooed: 0 }, feastSeen: false, hints: {}, dayStats: freshDayStats(), goals: null, tut: 0, weather: 'clear', found: {} });
+  Object.assign(S, { day: 1, hour: 8, belly: 75, shinies: 2, pinecones: 0, pouch: [], pantry: {}, journal: {}, upgrades: {}, craving: null, cravingDone: false, stats: { swiped: 0, shooed: 0 }, feastSeen: false, hints: {}, dayStats: freshDayStats(), goals: null, tut: 0, weather: 'clear', found: {}, heat: {} });
   shopVisited = false;
 }
 function newGame() {
@@ -3863,15 +3922,34 @@ function report(lines) {
   const pre = document.createElement('pre'); pre.id = 'testReport'; pre.textContent = lines.join('\n');
   document.body.appendChild(pre); document.title = 'TEST DONE';
 }
+// scenes for shots: set up a moment, then the shot is taken (tests/run.sh shot camp@12 wary)
+const SCENES = {
+  wary() { S.heat.camp = 5.5; applyHeat(); P.x = 1380; P.y = 980; return { card: true }; },       // food latched, the title card's ribbon
+  mud() {                                                                                             // Bramble wades out; the ranger picks up the trail
+    TEST.blind = true; P.x = 2776; P.y = 1660;
+    for (let i = 0; i < 66; i++) { keys.a = i < 50; keys.s = i >= 50; const dt = 1 / 30; time += dt; update(dt); updateFX(dt); } keys.a = keys.s = false;
+    const R = RANGER; R.x = 2700; R.y = 1740; R.dir = R.dirT = -1; R.mode = 'routine'; R.wait = 30; R.path = null; R.arrived = true;
+    for (let i = 0; i < 45; i++) { const dt = 1 / 30; time += dt; update(dt); updateFX(dt); }
+    return { still: true };
+  },
+  bend() {                                                                                            // mid-stride through a bush
+    TEST.blind = true; const b = bushes.find(q => !q.log && dist(q.x, q.y, 1500, 765) < 5); P.x = b.x + 56; P.y = b.y;
+    for (let i = 0; i < 12; i++) { keys.a = true; const dt = 1 / 30; time += dt; update(dt); } keys.a = false;
+    return { still: true };
+  },
+};
 function testShot(spec) {
   const [id, hs] = spec.split('@'), a = AREAS.find(q => q.id === id);
   if (!a) { report([`No area called "${id}". Areas: ${AREAS.map(q => q.id).join(', ')}`]); return; }
   S.hour = hs ? +hs : 10; dark = darkAt(S.hour); restock(); spawnShinies(); placeNPCs();
   const f = nearestFree(cellOf(a.x + (a.shot ? a.shot[0] : 0)), rowOf(a.y + (a.shot ? a.shot[1] : 70)));
   P.x = f[0] * CELL + 16; P.y = f[1] * CELL + 16; P.face = HALF;
-  S.mode = 'play'; TEST.blind = true; updateCamera(0, true);
-  for (let i = 0; i < 90; i++) { const dt = 1 / 30; time += dt; update(dt); updateFX(dt); updateCamera(dt, false); }
-  card = null; document.title = 'TEST DONE';
+  S.mode = 'play'; TEST.blind = true;
+  const sc = TEST.scene && SCENES[TEST.scene] ? SCENES[TEST.scene]() : {};
+  updateCamera(0, true);
+  for (let i = 0; i < (sc.still ? 3 : sc.card ? 45 : 90); i++) { const dt = 1 / 30; time += dt; update(dt); updateFX(dt); updateCamera(dt, false); }
+  if (!sc.card) card = null;
+  document.title = 'TEST DONE';
   const still = () => { resize(); render(); requestAnimationFrame(still); };   // time stands still; redraw in case the window resizes
   still();
 }
@@ -3957,7 +4035,7 @@ function runTest() {
   restock(); spawnShinies(); pickCraving(); placeNPCs(); beginPlay(false);
   // a handle for poking at the game from the console: bramble.go('mill'), bramble.hour(19.5)
   window.bramble = {
-    S, P, npcs, loot, bushes, shaken, FEEL, AREAS, BEACONS,
+    S, P, npcs, loot, bushes, shaken, FEEL, AREAS, BEACONS, RANGER_ROUTE, newDay,
     go(id, dx = 0, dy = 70) { const a = AREAS.find(q => q.id === id) || { x: id, y: dx }; const f = nearestFree(cellOf(a.x + (a.x === id ? 0 : dx)), rowOf(a.y + (a.x === id ? 0 : dy))); P.x = f[0] * CELL + 16; P.y = f[1] * CELL + 16; P.goal = null; updateCamera(0, true); },
     hour(h) { S.hour = h; dark = darkAt(h); placeNPCs(); },
     blind(on = true) { TEST.blind = on; },
