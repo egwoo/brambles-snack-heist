@@ -874,6 +874,7 @@ function mkNPC(name, look, opts, sched) {
 }
 const BARKS = {
   sus: ['Hm?', 'Did that bush just move?', 'Who’s there?', 'Huh.', 'Something’s out there…'],
+  bush: ['Did that bush just move?', 'Something’s in the bushes…', 'Hello? Squirrel?', 'That bush is… breathing?'],
   noise: ['What was that?', 'Hello?', 'Probably a squirrel.', 'I heard something.', 'Huh? Over there?'],
   chase: ['Hey! Get back here!', 'Snack thief!', 'Stop right there!', 'Is that a shrub?!'],
   shout: ['What’s going on?', 'Where?!', 'I’m coming!'],
@@ -995,7 +996,7 @@ const FEEL = {
   freeze: { grab: .07, spotted: .06 },         // seconds the world holds still on a big moment
   squash: { grab: .2, trot: .13, bush: .16 },  // how far Bramble squashes (0 = none); he springs back with a little stretch
   spring: { k: 340, damp: 15 },
-  bend: { reach: 50, push: 260, tiptoe: .35, small: { k: 160, damp: 9 }, big: { k: 90, damp: 8 }, notice: 7 },
+  bend: { reach: 50, tiptoe: .35, small: { k: 170, damp: 7 }, big: { k: 95, damp: 7.5 }, lean: 11, notice: .42 },   // notice: how far a bush has to swing for a camper to see it
 };
 const P = { kind: 'player', x: DEN.x, y: DEN.y + 42, face: HALF, vx: 0, vy: 0, spd: 0, idleT: 0, stepSide: 1, tiptoe: false, moving: false, hidden: false, safe: true, bush: null, stepT: 0, anim: 0, rum: null, near: null, prevHeld: false, sortY: 0, sq: 0, sqV: 0, wasMoving: false };
 let muted = false, dark = 0, time = 0, tutT = 0, ambT = 3;
@@ -1277,6 +1278,7 @@ function updateNPC(n, dt) {
   const vis = visionOf(n); n.vis = vis;
   gatherBlockers(n, vis.range + 30);
   const seen = canSee(n, vis);
+  if (!seen && n.mode !== 'chase' && shaken.length && !(TEST && TEST.blind)) noticeShaking(n, vis, dt);
   if (seen) {
     const d = dist(n.x, n.y, P.x, P.y);
     let rate = 2.3 * (1.15 - d / vis.range * .85);
@@ -1507,6 +1509,48 @@ function puff(x, y, kind) {
 }
 function burst(x, y, col, n) { for (let i = 0; i < n; i++) parts.push({ x, y, vx: rand(-70, 70), vy: rand(-110, -30), life: .9, max: .9, size: rand(2, 3.6), c: col, g: 200, grow: 0 }); }
 function confetti(x, y) { const cols = [KR.sun.join(), '156,196,107', '255,158,181', '143,211,255', '255,178,77']; for (let i = 0; i < 120; i++) parts.push({ x: x + rand(-40, 40), y: y + rand(-20, 10), vx: rand(-160, 160), vy: rand(-260, -80), life: rand(1.4, 2.4), max: 2.4, size: rand(2.5, 4.5), c: pick(cols), g: 220, grow: 0 }); }
+// plants: bushes and ferns lean away from anything brushing through them, then spring back (small plants are springier).
+// A bush Bramble sets thrashing goes on the `shaken` list, which campers can notice.
+const ferns = groundItems.filter(g => g.kind === 'fern'), shaken = [], movers = [];
+function bendPlant(o, big, dt) {
+  const F = FEEL.bend, R = F.reach * (big ? 1 : .6), Sp = big ? F.big : F.small;
+  let goal = 0, byP = false;
+  for (const m of movers) {
+    const dx = o.x - m.x, dy = (o.y - m.y) * 1.4;
+    if (Math.abs(dx) > R || Math.abs(dy) > R) continue;
+    const d = Math.hypot(dx, dy); if (d > R) continue;
+    const near = 1 - d / R, sp = Math.min(1.3, m.spd / 150), side = 1 - Math.min(1, Math.abs(m.vx) / Math.max(1, m.spd));
+    goal += near * (m.vx / 150 * 1.1 + (dx < 0 ? -1 : 1) * sp * side * .5) * m.k;   // dragged along the way you're going; pushed aside if you pass up or down
+    if (m.p && near * sp * m.k > .12) byP = true;
+  }
+  goal = clamp(goal, -1.2, 1.2);
+  o.bv = (o.bv || 0) + (Sp.k * (goal - (o.bend || 0)) - Sp.damp * (o.bv || 0)) * dt;
+  o.bend = (o.bend || 0) + o.bv * dt;
+  return byP;
+}
+function updatePlants(dt) {
+  movers.length = 0; shaken.length = 0;
+  if (S.mode === 'play' && P.spd > 5 && !(P.bush && P.bush.log)) movers.push({ x: P.x, y: P.y, vx: P.vx, spd: P.spd, k: P.tiptoe ? FEEL.bend.tiptoe : 1, p: 1 });
+  for (const n of npcs) if (!n.inside && n.walking) { const sp = n.mode === 'chase' ? n.chase : n.speed; movers.push({ x: n.x, y: n.y, vx: Math.cos(n.dir) * sp, spd: sp, k: .75 }); }
+  const x0 = view.x - 80, x1 = view.x + VW / Z + 80, y0 = view.y - 60, y1 = view.y + VH / Z + 100;
+  const live = o => o.x > x0 && o.x < x1 && o.y > y0 && o.y < y1;
+  const w = Math.sqrt(FEEL.bend.big.k);
+  for (const b of bushes) if (!b.log && live(b)) {
+    if (bendPlant(b, true, dt)) b.pT = time;
+    if (time - (b.pT ?? -9) < 1 && Math.hypot(b.bend, b.bv / w) > FEEL.bend.notice) shaken.push(b);   // still swinging from Bramble
+  }
+  for (const f of ferns) if (live(f)) bendPlant(f, false, dt);
+}
+function noticeShaking(n, vis, dt) {
+  for (const b of shaken) {
+    const d = dist(n.x, n.y, b.x, b.y);
+    if (d > vis.range * .9 || d < 1 || Math.abs(angDiff(n.dir, Math.atan2(b.y - n.y, b.x - n.x))) > vis.half) continue;
+    if (rayHit(n, (b.x - n.x) / d, (b.y - n.y) / d, d) < d - 30) continue;
+    n.alert = Math.min(.75, n.alert + 1.2 * dt); n.lastX = b.x; n.lastY = b.y;
+    if (n.alert >= .33 && (n.mode === 'routine' || n.mode === 'investigate')) { n.mode = 'suspicious'; n.susT = 0; n.sitting = false; n.popT = time; SFX.huh(); say(n, 'bush', true); hint('rustle'); }
+    return;
+  }
+}
 function updateFX(dt) {
   for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.life -= dt; if (p.life <= 0) { parts.splice(i, 1); continue; } p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.size += p.grow * dt; if (p.leaf) p.x += Math.sin(p.life * 3 + p.sway) * 26 * dt; }
   for (let i = prints.length - 1; i >= 0; i--) { prints[i].t += dt; if (prints[i].t > 8) prints.splice(i, 1); }
@@ -2079,12 +2123,14 @@ function drawSnag(c, t, s, sw, lit) {
 function drawBush(c, b) {
   const sh = (P.bush === b ? Math.sin(time * 9) * .8 : 0) + Math.sin(time * 40) * b.rustle * 3 + Math.sin(time * 1.4 + b.x * .03) * .8;
   shadow(c, b.x, b.y + 2, 36, 10);
-  const x = b.x + sh, y = b.y - 12;
+  const x = b.x + sh, y = b.y - 12, lean = (b.bend || 0) * FEEL.bend.lean;
+  c.save(); c.translate(b.x, b.y); c.transform(1, 0, -lean / 34, 1, 0, 0); c.translate(-b.x, -b.y);   // lean the top, keep the roots
   blobs(c, [[x - 18, y + 4, 18], [x + 18, y + 4, 18], [x, y - 8, 22], [x - 11, y - 15, 15], [x + 12, y - 15, 15], [x, y + 6, 20]], K.mossD);
   blobs(c, [[x - 17, y - 4, 13], [x + 11, y - 6, 13], [x - 2, y - 18, 15], [x - 7, y, 11]], K.moss);
   blobs(c, [[x - 10, y - 22, 6], [x + 5, y - 26, 5], [x - 20, y - 9, 4]], K.leaf);
   const fls = [K.paper, K.sun, K.rust];
   for (let i = 0; i < 5; i++) { const h = hash2(b.x + i, b.y - i); circ(c, x - 20 + h * 40, y - 18 + hash2(b.y + i, b.x) * 30, 2.8, fls[Math.floor(b.seed * 3 + i) % 3]); }
+  c.restore();
 }
 function drawBerry(c, o) {
   shadow(c, o.x, o.y + 2, 26, 8);
@@ -2881,8 +2927,8 @@ GROUND.stage = (c, g) => {
 };
 GROUND.sawdust = (c, g) => { ell(c, g.x, g.y, 30, 11, K.mix('earth', 'paper', .62)); ell(c, g.x - 6, g.y - 3, 15, 5, K.paper); };
 GROUND.fern = (c, g) => {
-  const s = g.s, sw = Math.sin(time * 1.3 + g.x * .05) * .06;
-  for (let i = 0; i < 5; i++) { const a = -HALF + (i - 2) * .55 + sw; leaf(c, g.x + Math.cos(a) * 9 * s, g.y - 3 + Math.sin(a) * 7 * s, 10 * s, 2.8 * s, a, i % 2 ? K.moss : K.mossD); }
+  const s = g.s, sw = Math.sin(time * 1.3 + g.x * .05) * .06 + (g.bend || 0) * .6;
+  for (let i = 0; i < 5; i++) { const a = -HALF + (i - 2) * .55 * (1 - Math.abs(g.bend || 0) * .25) + sw; leaf(c, g.x + Math.cos(a) * 9 * s, g.y - 3 + Math.sin(a) * 7 * s, 10 * s, 2.8 * s, a, i % 2 ? K.moss : K.mossD); }
 };
 GROUND.shroom = (c, g) => {
   for (let i = 0; i < 3; i++) {
@@ -3261,6 +3307,7 @@ const HINTS = {
   creek: 'Wading is slow and splashy. Cross Whisper Creek on the footbridge or along the beaver dam.',
   beaver: 'Beavers slap their tails when something trots by, and everyone nearby hears it. Tiptoe along the pond.',
   log: 'The hollow log hides you just like a bush.',
+  rustle: 'Trotting through bushes makes them thrash, and campers notice. Tiptoe into your hiding spots.',
 };
 let incoming = 0;
 function flyToPouch(type, wx, wy) {
@@ -3568,6 +3615,7 @@ function update(dt) {
   if (S.hour >= 2 && S.hour < 6) { passOut(); return; }
   updatePlayer(dt);
   if (S.mode !== 'play') return;
+  updatePlants(dt);
   for (const n of npcs) updateNPC(n, dt);
   if (dark > .5) hint('night');
   tutorial(dt);
@@ -3870,7 +3918,7 @@ function runTest() {
   restock(); spawnShinies(); pickCraving(); placeNPCs(); beginPlay(false);
   // a handle for poking at the game from the console: bramble.go('mill'), bramble.hour(19.5)
   window.bramble = {
-    S, P, npcs, loot, bushes, FEEL, AREAS, BEACONS,
+    S, P, npcs, loot, bushes, shaken, FEEL, AREAS, BEACONS,
     go(id, dx = 0, dy = 70) { const a = AREAS.find(q => q.id === id) || { x: id, y: dx }; const f = nearestFree(cellOf(a.x + (a.x === id ? 0 : dx)), rowOf(a.y + (a.x === id ? 0 : dy))); P.x = f[0] * CELL + 16; P.y = f[1] * CELL + 16; P.goal = null; updateCamera(0, true); },
     hour(h) { S.hour = h; dark = darkAt(h); placeNPCs(); },
     blind(on = true) { TEST.blind = on; },
