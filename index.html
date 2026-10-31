@@ -884,7 +884,7 @@ const BARKS = {
 };
 const BARK_BY = {
   Milo: { chase: ['A moss monster!', 'Mom! MOM!', 'Wait, I wanna pet it!'], giveup: ['Aww. It got away.', 'Nobody’s gonna believe me.'] },
-  'Ranger Oakes': { chase: ['Halt! Wildlife violation!', 'Stop right there!'], sus: ['Hmm. Tracks?', 'Who goes there?'], giveup: ['I’ll be watching.', 'Clear. For now.'] },
+  'Ranger Oakes': { chase: ['Halt! Wildlife violation!', 'Stop right there!'], sus: ['Hmm. Tracks?', 'Who goes there?'], giveup: ['I’ll be watching.', 'Clear. For now.'], tracks: ['Hmm. Tracks?', 'Muddy prints… big ones.', 'Something came up out of the creek.', 'Let’s see where you went.'], endtrail: ['Trail goes cold here.', 'Lost it.'] },
   Ron: { chase: ['Not my hot dogs!', 'Drop the bun!'] },
   June: { chase: ['Not the pie!', 'Shoo! Shoo!'] },
   Gus: { chase: ['Hey! That’s my catch!'], noise: ['Something splash?'] },
@@ -970,7 +970,7 @@ mkNPC('Sal', { shirt: 'paper', pattern: 'stripeV', pants: 'ink', skin: 'skinD', 
   { from: 8, to: 20, kind: 'vendor', x: 1150, y: 1632, face: HALF, glances: [-.9, .9], back: [1268, 1448, Math.PI], trip: [13, 21], tripHold: [4, 6.5] },
   { from: 20, to: 8, kind: 'gone', x: 1150, y: 1632 },
 ]);
-mkNPC('Ranger Oakes', { shirt: 'earth', pattern: 'ranger', pants: 'pine', belt: 1, skin: 'skinL', hair: 'bark', hairDo: 'short', mustache: 1, hat: 'ranger', prop: 'radio', w: 20 }, { speed: 80, chase: 160, range: 230, half: .6, giveUp: 3, flashlight: 1 }, [
+mkNPC('Ranger Oakes', { shirt: 'earth', pattern: 'ranger', pants: 'pine', belt: 1, skin: 'skinL', hair: 'bark', hairDo: 'short', mustache: 1, hat: 'ranger', prop: 'radio', w: 20 }, { speed: 80, chase: 160, range: 230, half: .6, giveUp: 3, flashlight: 1, tracker: 1 }, [
   { from: 7, to: 12, kind: 'patrol', pts: RANGER_ROUTE, pause: [1.5, 3.5] },
   { from: 12, to: 13, ...post(598, 1815, Math.PI, { sit: 1, glances: [-1.2, 1.2, -HALF] }) },
   { from: 13, to: 18, kind: 'patrol', pts: RANGER_ROUTE, pause: [1.5, 3.5] },
@@ -996,9 +996,10 @@ const FEEL = {
   freeze: { grab: .07, spotted: .06 },         // seconds the world holds still on a big moment
   squash: { grab: .2, trot: .13, bush: .16 },  // how far Bramble squashes (0 = none); he springs back with a little stretch
   spring: { k: 340, damp: 15 },
+  mud: { steps: 18, life: 50 },   // muddy steps after wading, and how many seconds a mud print lasts
   bend: { reach: 50, tiptoe: .35, small: { k: 170, damp: 7 }, big: { k: 95, damp: 7.5 }, lean: 11, notice: .42 },   // notice: how far a bush has to swing for a camper to see it
 };
-const P = { kind: 'player', x: DEN.x, y: DEN.y + 42, face: HALF, vx: 0, vy: 0, spd: 0, idleT: 0, stepSide: 1, tiptoe: false, moving: false, hidden: false, safe: true, bush: null, stepT: 0, anim: 0, rum: null, near: null, prevHeld: false, sortY: 0, sq: 0, sqV: 0, wasMoving: false };
+const P = { kind: 'player', x: DEN.x, y: DEN.y + 42, face: HALF, vx: 0, vy: 0, spd: 0, idleT: 0, stepSide: 1, tiptoe: false, moving: false, hidden: false, safe: true, bush: null, stepT: 0, anim: 0, rum: null, near: null, prevHeld: false, sortY: 0, sq: 0, sqV: 0, wasMoving: false, mud: 0 };
 let muted = false, dark = 0, time = 0, tutT = 0, ambT = 3;
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const SUN = { dx: 0, a: 1 };
@@ -1268,6 +1269,29 @@ function canSee(n, vis) {
   if (Math.abs(angDiff(n.dir, a)) > vis.half) return false;
   return rayHit(n, (P.x - n.x) / d, (P.y - n.y) / d, d) >= d - 1;
 }
+// the ranger reads muddy footprints: he walks the trail print by print, then searches where it ends
+function spotTracks(n, vis, dt) {
+  n.trkT = (n.trkT || 0) - dt; if (n.trkT > 0) return; n.trkT = .3;
+  const R = vis.range * .7; let found = null;
+  for (const p of prints) {   // oldest first, so he picks up the trail where it starts
+    if (!p.mud || p.seen || p.t > FEEL.mud.life * .8) continue;
+    const d = dist(n.x, n.y, p.x, p.y); if (d > R) continue;
+    if (d > 30 && (Math.abs(angDiff(n.dir, Math.atan2(p.y - n.y, p.x - n.x))) > vis.half || rayHit(n, (p.x - n.x) / d, (p.y - n.y) / d, d) < d - 4)) continue;
+    found = p; break;
+  }
+  if (!found) return;
+  const trail = [];
+  for (let i = prints.indexOf(found); i < prints.length; i++) { const p = prints[i]; if (!p.mud || p.seen) continue; p.seen = true; const l = trail[trail.length - 1]; if (!l || dist(l.x, l.y, p.x, p.y) > 28) trail.push(p); }
+  n.mode = 'track'; n.trail = trail; n.ti = 0; n.sitting = false; n.glancing = false; n.alert = Math.max(n.alert, .2); n.popT = time;
+  goTo(n, trail[0].x, trail[0].y); say(n, 'tracks', true); hint('tracks');
+}
+function doTrack(n, dt) {
+  const p = n.trail[n.ti];
+  if (p && !follow(n, n.speed * .85, dt) && dist(n.x, n.y, p.x, p.y) > 12) return;
+  const q = n.trail[++n.ti];
+  if (!q) { const l = n.trail[n.trail.length - 1]; investigate(n, l.x, l.y); n.invPhase = 'look'; n.invT = 3.4; say(n, 'endtrail', true); return; }
+  n.path = walkLine(n.x, n.y, q.x, q.y) ? [{ x: q.x, y: q.y }] : findPath(n.x, n.y, q.x, q.y) || [{ x: q.x, y: q.y }]; n.pi = 0;
+}
 function updateNPC(n, dt) {
   const t = taskAt(n, S.hour);
   if (t !== n.task && (n.mode === 'routine' || n.inside)) setTask(n, t);
@@ -1289,8 +1313,9 @@ function updateNPC(n, dt) {
     n.alert = Math.min(1.2, n.alert + rate * dt); n.lastX = P.x; n.lastY = P.y; n.lost = 0;
   } else { n.lost += dt; if (n.mode !== 'chase') n.alert = Math.max(0, n.alert - .28 * dt); }
   if (n.mode !== 'chase' && n.alert >= 1) startChase(n);
-  else if (seen && n.alert >= .33 && (n.mode === 'routine' || n.mode === 'investigate')) { n.mode = 'suspicious'; n.susT = 0; n.sitting = false; n.popT = time; SFX.huh(); say(n, 'sus', true); hint('seen'); }
+  else if (seen && n.alert >= .33 && (n.mode === 'routine' || n.mode === 'investigate' || n.mode === 'track')) { n.mode = 'suspicious'; n.susT = 0; n.sitting = false; n.popT = time; SFX.huh(); say(n, 'sus', true); hint('seen'); }
   if (n.mode === 'routine' && n.arrived && n.coneOn && !n.inside) { n.chatT -= dt; if (n.chatT <= 0) { n.chatT = n.task.talk === 2 ? rand(3.5, 6) : n.task.talk ? rand(8, 15) : rand(9, 20); if (dist(n.x, n.y, P.x, P.y) < 520 || S.mode === 'title') say(n, 'chat'); } }
+  if (n.tracker && n.mode === 'routine' && !seen && prints.length) spotTracks(n, vis, dt);
   switch (n.mode) {
     case 'routine': routine(n, dt); break;
     case 'suspicious':
@@ -1298,6 +1323,7 @@ function updateNPC(n, dt) {
       if (!seen) { n.susT += dt; if (n.susT > 1.1) { if (n.alert > .15) investigate(n, n.lastX, n.lastY); else resume(n); } } else n.susT = 0;
       break;
     case 'investigate': doInvestigate(n, dt); break;
+    case 'track': doTrack(n, dt); break;
     case 'chase': doChase(n, dt, seen); break;
   }
   if (n.walking) n.anim += dt;
@@ -1461,9 +1487,14 @@ function updatePlayer(dt) {
       P.stepT = P.tiptoe ? .42 : .3;
       const surf = surfaceAt(P.x, P.y);
       SFX.step(surf, P.tiptoe);
-      if (surf === 'water') { makeNoise(P.x, P.y, (P.tiptoe ? 55 : 120) * hush(), false); puff(P.x, P.y, 'splash'); wades.push({ x: P.x, y: P.y, t: time }); if (wades.length > 12) wades.shift(); }
+      if (surf === 'water') { makeNoise(P.x, P.y, (P.tiptoe ? 55 : 120) * hush(), false); puff(P.x, P.y, 'splash'); wades.push({ x: P.x, y: P.y, t: time }); if (wades.length > 12) wades.shift(); P.mud = FEEL.mud.steps; }
       else if (!P.tiptoe) { makeNoise(P.x, P.y, 70 * hush(), false); puff(P.x, P.y, raining() ? 'splash' : 'dust'); }
-      if (surf === 'sand' || surf === 'dirt') { P.stepSide = -P.stepSide; prints.push({ x: P.x + Math.cos(P.face + HALF) * P.stepSide * 5, y: P.y + Math.sin(P.face + HALF) * P.stepSide * 3, a: P.face, t: 0 }); if (prints.length > 70) prints.shift(); }
+      if (surf !== 'water' && (surf === 'sand' || surf === 'dirt' || P.mud > 0)) {
+        const mud = P.mud > 0 ? P.mud / FEEL.mud.steps : 0;
+        if (mud) { P.mud--; if (P.mud === FEEL.mud.steps - 3) hint('mud'); }
+        P.stepSide = -P.stepSide; prints.push({ x: P.x + Math.cos(P.face + HALF) * P.stepSide * 5, y: P.y + Math.sin(P.face + HALF) * P.stepSide * 3, a: P.face, t: 0, mud });
+        if (prints.length > 110) prints.shift();
+      }
     }
     if (!P.tiptoe) for (const tw of twigs) if (tw.cd <= 0 && Math.abs(tw.x - P.x) < 24 && dist(P.x, P.y, tw.x, tw.y) < 22) { tw.cd = 1.6; makeNoise(tw.x, tw.y, 200 * (S.upgrades.soft ? .65 : 1) * (raining() ? .6 : 1), true); SFX.snap(); shake(FEEL.shake.twig); hint('twig'); }
   }
@@ -1547,13 +1578,13 @@ function noticeShaking(n, vis, dt) {
     if (d > vis.range * .9 || d < 1 || Math.abs(angDiff(n.dir, Math.atan2(b.y - n.y, b.x - n.x))) > vis.half) continue;
     if (rayHit(n, (b.x - n.x) / d, (b.y - n.y) / d, d) < d - 30) continue;
     n.alert = Math.min(.75, n.alert + 1.2 * dt); n.lastX = b.x; n.lastY = b.y;
-    if (n.alert >= .33 && (n.mode === 'routine' || n.mode === 'investigate')) { n.mode = 'suspicious'; n.susT = 0; n.sitting = false; n.popT = time; SFX.huh(); say(n, 'bush', true); hint('rustle'); }
+    if (n.alert >= .33 && (n.mode === 'routine' || n.mode === 'investigate' || n.mode === 'track')) { n.mode = 'suspicious'; n.susT = 0; n.sitting = false; n.popT = time; SFX.huh(); say(n, 'bush', true); hint('rustle'); }
     return;
   }
 }
 function updateFX(dt) {
   for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.life -= dt; if (p.life <= 0) { parts.splice(i, 1); continue; } p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.size += p.grow * dt; if (p.leaf) p.x += Math.sin(p.life * 3 + p.sway) * 26 * dt; }
-  for (let i = prints.length - 1; i >= 0; i--) { prints[i].t += dt; if (prints[i].t > 8) prints.splice(i, 1); }
+  for (let i = prints.length - 1; i >= 0; i--) { prints[i].t += dt; if (prints[i].t > (prints[i].mud ? FEEL.mud.life : 8)) prints.splice(i, 1); }
   for (let i = floaters.length - 1; i >= 0; i--) { floaters[i].t += dt; if (floaters[i].t > 1.3) floaters.splice(i, 1); }
   for (let i = rings.length - 1; i >= 0; i--) { rings[i].t += dt; if (rings[i].t > .7) rings.splice(i, 1); }
   for (let i = projs.length - 1; i >= 0; i--) {
@@ -1988,7 +2019,13 @@ function drawGround(x0, y0, x1, y1) {
   }
   if (x1 > LAKE.x - LAKE.rx - 60 && y0 < LAKE.y + LAKE.ry + 60) drawLake(c);
   if (x1 > 2620 && y1 > 900 && x0 < 3060) drawCreek(c);
-  for (const p of prints) { const a = (1 - p.t / 8) * .45; if (a <= 0) continue; c.save(); c.translate(p.x, p.y); c.rotate(p.a); ell(c, 0, 0, 5, 3, kA('bark', a.toFixed(3))); c.restore(); }
+  for (const p of prints) {
+    const life = p.mud ? FEEL.mud.life : 8, a = (1 - p.t / life) * (p.mud ? .3 + .45 * p.mud : .45); if (a <= 0) continue;
+    c.save(); c.translate(p.x, p.y); c.rotate(p.a);
+    if (p.mud) { const ink = kA('bark', a.toFixed(3)); ell(c, -.5, 0, 7.2, 3.9, ink); for (const ty of [-3, 0, 3]) circ(c, 7.8 - Math.abs(ty) * .4, ty, 1.5, ink); }   // big, toed, muddy
+    else ell(c, 0, 0, 5, 3, kA('bark', a.toFixed(3)));
+    c.restore();
+  }
   for (const g of groundItems) { if (g.x < x0 - 140 || g.x > x1 + 140 || g.y < y0 - 80 || g.y > y1 + 80) continue; GROUND[g.kind](c, g); }
   for (const p of conePiles) for (let i = 0; i < p.n; i++) drawCone(c, p.x - 10 + i * 9, p.y + (i % 2) * 3, .3 + i);
 }
@@ -3307,6 +3344,8 @@ const HINTS = {
   creek: 'Wading is slow and splashy. Cross Whisper Creek on the footbridge or along the beaver dam.',
   beaver: 'Beavers slap their tails when something trots by, and everyone nearby hears it. Tiptoe along the pond.',
   log: 'The hollow log hides you just like a bush.',
+  mud: 'Muddy feet! Bramble leaves tracks for a while after wading.',
+  tracks: 'Ranger Oakes is following your muddy tracks. Lead him somewhere useless, or wait for them to dry.',
   rustle: 'Trotting through bushes makes them thrash, and campers notice. Tiptoe into your hiding spots.',
 };
 let incoming = 0;
@@ -3675,7 +3714,7 @@ function pollPad() {
   } else if (S.mode === 'title' && (a || st)) ($('#btnContinue').hidden ? $('#btnNew') : $('#btnContinue')).click();
 }
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; touchGrab = false; });
-document.addEventListener('visibilitychange', () => { if (document.hidden && S.mode === 'play') openPause(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && S.mode === 'play' && !TEST) openPause(); });
 // mouse: hold left button to steer toward the cursor (close = tiptoe), click to walk or grab, right-click to toss
 const mouse = { on: false, held: false, sx: 0, sy: 0, downT: 0, downX: 0, downY: 0, mark: null };
 const screenToWorld = (sx, sy) => [view.x + sx / Z, view.y + sy / Z];
@@ -3922,6 +3961,9 @@ function runTest() {
     go(id, dx = 0, dy = 70) { const a = AREAS.find(q => q.id === id) || { x: id, y: dx }; const f = nearestFree(cellOf(a.x + (a.x === id ? 0 : dx)), rowOf(a.y + (a.x === id ? 0 : dy))); P.x = f[0] * CELL + 16; P.y = f[1] * CELL + 16; P.goal = null; updateCamera(0, true); },
     hour(h) { S.hour = h; dark = darkAt(h); placeNPCs(); },
     blind(on = true) { TEST.blind = on; },
+    // run the game for `sec` seconds at a fixed 30 fps, holding `held` keys (e.g. 'a', 'shift', ' '), then draw one frame;
+    // works even when the page is in the background and animation frames are paused
+    step(sec, held = []) { for (const k of held) keys[k] = true; for (let i = 0; i < Math.round(sec * 30); i++) { const dt = 1 / 30; time += dt; if (S.mode === 'play') update(dt); updateFX(dt); updateCamera(dt, false); } for (const k of held) keys[k] = false; render(); return { x: Math.round(P.x), y: Math.round(P.y), hour: +S.hour.toFixed(2) }; },
   };
   requestAnimationFrame(t => { last = t; requestAnimationFrame(frame); });
 }
