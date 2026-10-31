@@ -989,7 +989,15 @@ const S = {
 };
 const raining = () => S.weather === 'rain';
 const hush = () => (S.upgrades.soft ? .5 : 1) * (raining() ? .6 : 1);
-const P = { kind: 'player', x: DEN.x, y: DEN.y + 42, face: HALF, vx: 0, vy: 0, spd: 0, idleT: 0, stepSide: 1, tiptoe: false, moving: false, hidden: false, safe: true, bush: null, stepT: 0, anim: 0, rum: null, near: null, prevHeld: false, sortY: 0 };
+// game feel: every tunable number for shake, freeze-frames, squash and plant bending, in one place
+const FEEL = {
+  shake: { chase: 4, clang: 3, twig: 2.5, beaver: 1.5, caught: 9, grab: 1.4 },
+  freeze: { grab: .07, spotted: .06 },         // seconds the world holds still on a big moment
+  squash: { grab: .2, trot: .13, bush: .16 },  // how far Bramble squashes (0 = none); he springs back with a little stretch
+  spring: { k: 340, damp: 15 },
+  bend: { reach: 50, push: 260, tiptoe: .35, small: { k: 160, damp: 9 }, big: { k: 90, damp: 8 }, notice: 7 },
+};
+const P = { kind: 'player', x: DEN.x, y: DEN.y + 42, face: HALF, vx: 0, vy: 0, spd: 0, idleT: 0, stepSide: 1, tiptoe: false, moving: false, hidden: false, safe: true, bush: null, stepT: 0, anim: 0, rum: null, near: null, prevHeld: false, sortY: 0, sq: 0, sqV: 0, wasMoving: false };
 let muted = false, dark = 0, time = 0, tutT = 0, ambT = 3;
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const SUN = { dx: 0, a: 1 };
@@ -1196,7 +1204,7 @@ function doInvestigate(n, dt) {
 }
 function startChase(n) {
   n.mode = 'chase'; n.alert = 1; n.sitting = false; n.repath = 0; n.lost = 0; n.popT = time;
-  SFX.alarm(); hint('chase'); shake(4); say(n, 'chase', true);
+  SFX.alarm(); hint('chase'); shake(FEEL.shake.chase); freeze(FEEL.freeze.spotted); say(n, 'chase', true);
   S.dayStats.spotted++;
   for (const m of npcs) if (m !== n && !m.inside && m.mode !== 'chase' && dist(m.x, m.y, n.x, n.y) < 260) { m.alert = Math.max(m.alert, .3); investigate(m, P.x, P.y); m.popT = time; say(m, 'shout'); }
 }
@@ -1332,12 +1340,13 @@ function startRummage(o, quiet) {
   const st = lootState(o);
   if (!st.ok) { if (!quiet) { toast(st.msg); if (st.full) hint('full'); } return; }
   P.rum = { o, t: 0, tick: .15, need: o.need * (S.upgrades.quick ? .5 : 1) };
-  if (o.noise === 'clang') { makeNoise(o.x, o.y, 220 * (S.upgrades.soft ? .68 : 1) * (raining() ? .7 : 1), true); SFX.clang(); shake(3); }
+  if (o.noise === 'clang') { makeNoise(o.x, o.y, 220 * (S.upgrades.soft ? .68 : 1) * (raining() ? .7 : 1), true); SFX.clang(); shake(FEEL.shake.clang); }
 }
 function finishRummage(o) {
   const type = lootType(o);
   o.stocks[type]--; S.pouch.push(type); S.stats.swiped++; S.dayStats.swiped++; S.dayStats.types[type] = (S.dayStats.types[type] || 0) + 1;
   SFX.pickup(); burst(o.x, o.y - 16, KR.sun.join(), 12);
+  freeze(FEEL.freeze.grab); shake(FEEL.shake.grab); P.sq = FEEL.squash.grab; P.sqV = 0;
   floater(o.x, o.y - 34, SNACKS[type].name, 'sun');
   flyToPouch(type, o.x, o.y - 20);
   if (!S.journal[type] && !S.pouch.slice(0, -1).includes(type)) toast(`New snack: ${SNACKS[type].name}! Take it home to record it.`, 'good');
@@ -1439,6 +1448,9 @@ function updatePlayer(dt) {
   if (P.spd > 1) { const ox = P.x, oy = P.y; moveBody(P, P.vx * dt, P.vy * dt, 14); if (dt > 0) { P.vx = (P.x - ox) / dt; P.vy = (P.y - oy) / dt; } }
   else P.vx = P.vy = 0;
   P.moving = P.spd > 18;
+  if (mag && !P.wasMoving && !P.tiptoe && !wading) { P.sq = Math.max(P.sq, FEEL.squash.trot); P.sqV = 0; }   // crouch, then spring off
+  P.wasMoving = mag > 0;
+  P.sqV += (-FEEL.spring.k * P.sq - FEEL.spring.damp * P.sqV) * dt; P.sq += P.sqV * dt;
   if (mag) { P.face += angDiff(P.face, Math.atan2(ny, nx)) * Math.min(1, dt * 14); P.idleT = 0; } else P.idleT += dt;
   if (P.moving) {
     P.anim += dt * clamp(P.spd / 120, .5, 1.3);
@@ -1451,12 +1463,12 @@ function updatePlayer(dt) {
       else if (!P.tiptoe) { makeNoise(P.x, P.y, 70 * hush(), false); puff(P.x, P.y, raining() ? 'splash' : 'dust'); }
       if (surf === 'sand' || surf === 'dirt') { P.stepSide = -P.stepSide; prints.push({ x: P.x + Math.cos(P.face + HALF) * P.stepSide * 5, y: P.y + Math.sin(P.face + HALF) * P.stepSide * 3, a: P.face, t: 0 }); if (prints.length > 70) prints.shift(); }
     }
-    if (!P.tiptoe) for (const tw of twigs) if (tw.cd <= 0 && Math.abs(tw.x - P.x) < 24 && dist(P.x, P.y, tw.x, tw.y) < 22) { tw.cd = 1.6; makeNoise(tw.x, tw.y, 200 * (S.upgrades.soft ? .65 : 1) * (raining() ? .6 : 1), true); SFX.snap(); shake(2.5); hint('twig'); }
+    if (!P.tiptoe) for (const tw of twigs) if (tw.cd <= 0 && Math.abs(tw.x - P.x) < 24 && dist(P.x, P.y, tw.x, tw.y) < 22) { tw.cd = 1.6; makeNoise(tw.x, tw.y, 200 * (S.upgrades.soft ? .65 : 1) * (raining() ? .6 : 1), true); SFX.snap(); shake(FEEL.shake.twig); hint('twig'); }
   }
   for (const tw of twigs) if (tw.cd > 0) tw.cd -= dt;
   let hb = null;
   for (const b of bushes) if (Math.abs(b.x - P.x) < 40 && Math.abs(b.y - P.y) < 44 && dist(P.x, P.y, b.x, b.y - 6) < b.r - 4) { hb = b; break; }
-  if (hb !== P.bush) { if (hb) { hb.rustle = 1; SFX.rustle(.7); hint(hb.log ? 'log' : 'bush'); } else if (P.bush) P.bush.rustle = 1; P.bush = hb; }
+  if (hb !== P.bush) { if (hb) { hb.rustle = 1; SFX.rustle(.7); hint(hb.log ? 'log' : 'bush'); P.sq = FEEL.squash.bush; P.sqV = 0; } else if (P.bush) P.bush.rustle = 1; P.bush = hb; }
   P.hidden = !!hb;
   P.safe = dist(P.x, P.y, DEN.x, DEN.y + 20) < 135;
   updateArea();
@@ -1852,7 +1864,7 @@ function updateLife(dt) {
       else { b.a += angDiff(b.a, Math.atan2(dy, dx)) * Math.min(1, dt * 3); b.x += Math.cos(b.a) * 24 * dt; b.y += Math.sin(b.a) * 24 * dt; }
       const pd = dist(b.x, b.y, P.x, P.y);
       if (S.mode === 'play' && (pd < 80 || (pd < 190 && P.moving && !P.tiptoe))) {
-        b.state = 'dive'; b.t = rand(7, 11); SFX.slap(); shake(1.5); hint('beaver');
+        b.state = 'dive'; b.t = rand(7, 11); SFX.slap(); shake(FEEL.shake.beaver); hint('beaver');
         makeNoise(b.x, b.y, 200, true); for (let i = 0; i < 12; i++) puff(b.x, b.y, 'splash');
       }
     } else { b.t -= dt; if (b.t <= 0 && dist(b.x, b.y, P.x, P.y) > 220) { b.state = 'swim'; [b.x, b.y] = pondPoint(); [b.tx, b.ty] = pondPoint(); } }
@@ -2294,8 +2306,8 @@ function drawShiny(c, s) {
 // Bramble: a towering, hunched forest giant. One shaggy silhouette from hem to head, a heavy brow over
 // lantern eyes, a mantle of moss across the shoulders, long arms, and antlers with a bird's nest in them.
 function drawBramble(c, x, y, face, t, o = {}) {
-  const Q = o.pal || K, s = o.scale || 1;
-  c.save(); c.translate(x, y); c.scale(s, s);
+  const Q = o.pal || K, s = o.scale || 1, sqz = clamp(o.sq || 0, -.25, .3);
+  c.save(); c.translate(x, y); c.scale(s * (1 + sqz * .6), s * (1 - sqz));
   const moving = !!o.moving, tip = !!o.tiptoe, sq = tip ? .8 : 1;
   const step = moving ? Math.sin(t * (tip ? 8 : 12)) : 0, bob = moving ? Math.abs(step) * 2.2 : Math.sin(t * 1.8) * .7;
   const fx = Math.cos(face), fy = Math.sin(face), hx = fx * (tip ? 7 : 4), front = fy > -.5;
@@ -2381,7 +2393,7 @@ function drawBramble(c, x, y, face, t, o = {}) {
 function drawPlayer(c) {
   if (P.bush && P.bush.log) return;
   drawBramble(c, P.x, P.y, P.face, time, { moving: P.moving && S.mode === 'play', tiptoe: P.tiptoe, pouch: S.pouch.length, crown: S.upgrades.crown, rum: !!P.rum,
-    lean: clamp(-P.vx / 1000, -.15, .15) + (P.tiptoe ? Math.cos(P.face) * -.08 : 0), look: P.idleT > 2.5 ? Math.sin(time * 1.1) : 0, glow: dark > .3 });
+    lean: clamp(-P.vx / 1000, -.15, .15) + (P.tiptoe ? Math.cos(P.face) * -.08 : 0), look: P.idleT > 2.5 ? Math.sin(time * 1.1) : 0, glow: dark > .3, sq: P.sq });
 }
 // People: flat poster figures, each with a silhouette, clothes and props of their own.
 function drawHuman(c, n) {
@@ -3425,7 +3437,7 @@ function endDay() {
 }
 async function caughtBy(n) {
   if (S.mode !== 'play') return;
-  S.mode = 'caught'; S.stats.shooed++; P.rum = null; scout = 0; P.goal = null; P.autoGrab = null; mouse.held = false; P.vx = P.vy = 0; SFX.caught(); shake(9);
+  S.mode = 'caught'; S.stats.shooed++; P.rum = null; scout = 0; P.goal = null; P.autoGrab = null; mouse.held = false; P.vx = P.vy = 0; SFX.caught(); shake(FEEL.shake.caught);
   const lost = S.pouch.length;
   await fade(1, 650);
   S.pouch = []; P.x = DEN.x; P.y = DEN.y + 42; P.face = HALF;
@@ -3563,8 +3575,12 @@ function update(dt) {
   updateLife(dt);
 }
 let last = performance.now();
+let hitstop = 0;
+function freeze(sec) { if (!reduceMotion) hitstop = Math.max(hitstop, sec); }
 function frame(now) {
-  const dt = Math.min(.05, (now - last) / 1000); last = now; time += dt;
+  let dt = Math.min(.05, (now - last) / 1000); last = now;
+  if (hitstop > 0) { hitstop -= dt; dt = 0; }   // a freeze-frame: the world holds for a beat, then carries on
+  time += dt;
   pollPad();
   if (S.mode === 'play') update(dt);
   else if (S.mode === 'title') { dark = darkAt(S.hour); for (const n of npcs) updateNPC(n, dt); }
@@ -3852,6 +3868,13 @@ function runTest() {
     return;
   }
   restock(); spawnShinies(); pickCraving(); placeNPCs(); beginPlay(false);
+  // a handle for poking at the game from the console: bramble.go('mill'), bramble.hour(19.5)
+  window.bramble = {
+    S, P, npcs, loot, bushes, FEEL, AREAS, BEACONS,
+    go(id, dx = 0, dy = 70) { const a = AREAS.find(q => q.id === id) || { x: id, y: dx }; const f = nearestFree(cellOf(a.x + (a.x === id ? 0 : dx)), rowOf(a.y + (a.x === id ? 0 : dy))); P.x = f[0] * CELL + 16; P.y = f[1] * CELL + 16; P.goal = null; updateCamera(0, true); },
+    hour(h) { S.hour = h; dark = darkAt(h); placeNPCs(); },
+    blind(on = true) { TEST.blind = on; },
+  };
   requestAnimationFrame(t => { last = t; requestAnimationFrame(frame); });
 }
 
