@@ -9,7 +9,7 @@ Read `STYLE.md`. Every new area or asset should be finished to that bar before m
 ## Checking your work
 
 ```bash
-tests/run.sh shots HEAD   # render 42 shots of this version and the last commit, then open tests/out/report.html
+tests/run.sh shots HEAD   # render 48 shots of this version and the last commit, then open tests/out/report.html
 tests/run.sh sim          # a full day for every camper on three seeds: late, stuck, piled up, through walls or water
 tests/run.sh gaps         # trail stretches and patches of woods with no landmark in view
 tests/run.sh audio        # render the music and ambience offline at each place: levels as heard, how much of the tune
