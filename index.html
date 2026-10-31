@@ -530,7 +530,34 @@ for (const [x, y] of [[1240, 1000], [1720, 980], [1400, 1420]]) {
   addSprite({ kind: 'lamp', x, y });
   lights.push({ x, y: y - 30, r: 140, on: () => true, warm: '255,220,140' });
 }
-addSprite({ kind: 'sign', x: 1620, y: 2010, text: 'PINEWHISTLE LAKE', sortY: 2010 });
+// landmarks: hand-placed set pieces that give the map places worth naming
+const ARCH = { x: 1560, y: 2010 };
+for (const dx of [-52, 52]) solidCircle(ARCH.x + dx, ARCH.y, 9);
+addSprite({ kind: 'arch', x: ARCH.x, y: ARCH.y, sortY: ARCH.y + 6, tall: 150 });
+groundItems.push({ kind: 'flowerbed', x: ARCH.x - 84, y: ARCH.y + 8 }, { kind: 'flowerbed', x: ARCH.x + 84, y: ARCH.y + 8 });
+for (const dx of [-52, 52]) lights.push({ x: ARCH.x + dx, y: ARCH.y - 40, r: 130, on: () => true });
+clearAt(ARCH.x, ARCH.y, 130);
+const LOOKOUT = { x: 880, y: 300 };
+for (const [dx, dy] of [[-30, -14], [30, -14], [-30, 16], [30, 16]]) solidCircle(LOOKOUT.x + dx, LOOKOUT.y + dy, 6);
+addSprite({ kind: 'lookout', x: LOOKOUT.x, y: LOOKOUT.y, sortY: LOOKOUT.y + 16, tall: 300 });
+interact.push({ kind: 'lookout', x: LOOKOUT.x, y: LOOKOUT.y + 44, r: 54 });
+clearAt(LOOKOUT.x, LOOKOUT.y + 20, 150);
+PATHS.push({ w: 26, pts: [[700, 440], [790, 380], [880, 350]] });
+const SUNSET = { x: 2620, y: 1046 };
+solidRect(SUNSET.x - 28, SUNSET.y - 8, 56, 14, false);
+addSprite({ kind: 'bench', x: SUNSET.x, y: SUNSET.y, sortY: SUNSET.y + 6 });
+addSprite({ kind: 'sign', x: SUNSET.x + 74, y: SUNSET.y + 14, text: 'SUNSET POINT', sortY: SUNSET.y + 14 });
+for (const a of [.32, .5, 1.02, 2.1, 2.35, 2.62]) addSprite({ kind: 'reeds', x: LAKE.x + Math.cos(a) * (LAKE.rx - 10), y: LAKE.y + Math.sin(a) * (LAKE.ry - 10), seed: a });
+groundItems.push({ kind: 'canoe', x: 2486, y: 880 }, { kind: 'rowboat', x: 2760, y: 1010 });
+const OUTHOUSE = { x: 1995, y: 650 };
+solidRect(OUTHOUSE.x - 19, OUTHOUSE.y - 30, 38, 32);
+addSprite({ kind: 'outhouse', x: OUTHOUSE.x, y: OUTHOUSE.y, sortY: OUTHOUSE.y + 2 });
+clearAt(OUTHOUSE.x, OUTHOUSE.y, 60);
+solidRect(724, 1646, 34, 66);
+addSprite({ kind: 'woodpile', x: 741, y: 1712, sortY: 1712 });
+solidRect(1562, 1442, 40, 12, false);
+addSprite({ kind: 'mapboard', x: 1582, y: 1452, sortY: 1452 });
+addTree(2050, 800, 'round', 1.7).swing = true;
 
 // hiding bushes
 for (const [x, y] of [[1235, 845], [1500, 765], [1770, 760], [1015, 960], [1620, 1170], [1965, 1040], [1400, 1360], [1840, 1300], [2300, 1012], [2560, 1045], [1330, 1440], [975, 1440], [2040, 1640], [2040, 1855], [2400, 1835], [2625, 1640], [830, 1655], [440, 1885], [1600, 470], [1250, 470], [1920, 560], [1080, 1250], [1530, 1840]]) {
@@ -737,7 +764,7 @@ function say(n, kind, force) {
   const fresh = pool.filter(l => !busy.has(l) && (!n.say || l !== n.say.text));
   n.say = { text: pick(fresh.length ? fresh : pool), t: time, dur: kind === 'chat' ? 3.2 : 2.4 };
 }
-mkNPC('Dale', { shirt: 'sun', pants: 'deep', hair: 'bark', skin: 'skinL' }, {}, [
+mkNPC('Dale', { shirt: 'sun', pattern: 'plaid', rolled: 1, pants: 'deep', skin: 'skinL', hair: 'bark', hairDo: 'short', beard: 1, w: 22, belly: 2 }, {}, [
   { from: 6.5, to: 9, ...post(1120, 800, 0, { glances: [.8, -.8, -2.4] }) },
   { from: 9, to: 12, ...post(1280, 1294, -HALF, { sit: 1, glances: [-1.1, 1.1, Math.PI] }) },
   { from: 12, to: 14, kind: 'wander', pts: [...BEACH, ...MEADOW], pause: [3, 7] },
@@ -746,7 +773,7 @@ mkNPC('Dale', { shirt: 'sun', pants: 'deep', hair: 'bark', skin: 'skinL' }, {}, 
   { from: 19, to: 23.5, ...post(1400, 984, 0, { sit: 1, range: 165, glances: [-.7, .7, 1.3] }) },
   { from: 23.5, to: 6.5, kind: 'sleep', tent: 'T1' },
 ]);
-mkNPC('Priya', { shirt: 'water', pants: 'paper', hair: 'ink', skin: 'skinD', bun: 1 }, {}, [
+mkNPC('Priya', { shirt: 'water', pattern: 'zip', pants: 'earth', skin: 'skinD', hair: 'ink', hairDo: 'braid', prop: 'binoculars', w: 16 }, {}, [
   { from: 7, to: 10, ...post(1760, 1164, -HALF, { sit: 1, glances: [-1.1, 1.1, 2.6] }) },
   { from: 10, to: 13, kind: 'wander', pts: CAMP, pause: [2, 5] },
   { from: 13, to: 16, ...post(2250, 938, -HALF, { sit: 1, glances: [-1.3, 1.3, Math.PI], every: [4, 8] }) },
@@ -754,23 +781,23 @@ mkNPC('Priya', { shirt: 'water', pants: 'paper', hair: 'ink', skin: 'skinD', bun
   { from: 19, to: 23.5, ...post(1560, 984, Math.PI, { sit: 1, range: 165, glances: [-.7, .7, -1.3] }) },
   { from: 23.5, to: 7, kind: 'sleep', tent: 'T3' },
 ]);
-mkNPC('Bev', { shirt: 'rust', pants: 'bark', hair: 'paper', skin: 'skinL' }, { speed: 56 }, [
+mkNPC('Bev', { shirt: 'rust', pattern: 'cardigan', pants: 'bark', skin: 'skinL', hair: 'paper', hairDo: 'bun', glasses: 'specs', w: 19 }, { speed: 56 }, [
   { from: 8, to: 11, ...post(1760, 1076, HALF, { sit: 1, glances: [-1.1, 1.1, -2.6] }) },
   { from: 11, to: 15, kind: 'wander', pts: [...CAMP, ...MEADOW], pause: [3, 6] },
   { from: 15, to: 18, ...post(1912, 846, 2.3, { sit: 1, glances: [-1, .9, -2] }) },
   { from: 18, to: 22, ...post(1760, 1076, HALF, { sit: 1, glances: [-1.1, 1.1, -2.6] }) },
   { from: 22, to: 8, kind: 'sleep', tent: 'T4' },
 ]);
-mkNPC('Milo', { shirt: 'paper', pants: 'water', hair: 'bark', skin: 'skinL', hat: 'beanie' }, { size: .78, speed: 96, chase: 150, range: 160, half: .82, giveUp: 1.6 }, [
+mkNPC('Milo', { shirt: 'paper', pattern: 'stripe', pants: 'water', shorts: 1, skin: 'skinL', hair: 'bark', hairDo: 'short', hat: 'beanie', prop: 'net', pack: 'sun', w: 15 }, { size: .78, speed: 96, chase: 150, range: 160, half: .82, giveUp: 1.6 }, [
   { from: 8, to: 20.5, kind: 'wander', pts: [...CAMP, ...MEADOW, ...BEACH], pause: [1, 3] },
   { from: 20.5, to: 8, kind: 'sleep', tent: 'T2' },
 ]);
-mkNPC('Gus', { shirt: 'moss', pants: 'bark', hair: 'stone', skin: 'skinD', hat: 'bucket', vest: 'earth' }, { speed: 60 }, [
+mkNPC('Gus', { shirt: 'moss', pants: 'deep', waders: 1, vest: 'earth', skin: 'skinD', hair: 'stone', hairDo: 'short', beard: 1, hat: 'bucket', w: 21, belly: 2 }, { speed: 60 }, [
   { from: 6, to: 19, ...post(2430, 722, -HALF, { rod: 1, glances: [Math.PI, -.5, .5, Math.PI], every: [5, 10], hold: [1.6, 2.6] }) },
   { from: 19, to: 21, ...post(1480, 910, HALF, { sit: 1, range: 165, glances: [-.8, .8] }) },
   { from: 21, to: 6, kind: 'sleep', tent: 'T5' },
 ]);
-mkNPC('Ron', { shirt: 'rust', pants: 'ink', hair: 'bark', skin: 'skinD', hat: 'chef', apron: 1 }, {}, [
+mkNPC('Ron', { shirt: 'rust', pants: 'ink', apron: 1, skin: 'skinD', hair: 'bark', hairDo: 'short', mustache: 1, hat: 'chef', w: 23, belly: 5 }, {}, [
   { from: 7, to: 11, ...post(2290, 1750, HALF, { sit: 1, glances: [-1, 1, 1.9] }) },
   { from: 11, to: 14, ...post(2142, 1745, Math.PI, { grill: 1, glances: [HALF, -.6, HALF], every: [4, 8], hold: [2.2, 3.4] }) },
   { from: 14, to: 17, kind: 'wander', pts: RVZONE, pause: [3, 6] },
@@ -778,17 +805,17 @@ mkNPC('Ron', { shirt: 'rust', pants: 'ink', hair: 'bark', skin: 'skinD', hat: 'c
   { from: 20, to: 23, ...post(2290, 1750, HALF, { sit: 1, glances: [-1, 1] }) },
   { from: 23, to: 7, kind: 'gone', x: 2330, y: 1690 },
 ]);
-mkNPC('June', { shirt: 'leaf', pants: 'deep', hair: 'earth', skin: 'skinL', hat: 'sunhat' }, { speed: 56 }, [
+mkNPC('June', { shirt: 'leaf', dress: 1, skin: 'skinL', hair: 'earth', hairDo: 'long', glasses: 'shades', hat: 'sunhat', w: 16 }, { speed: 56 }, [
   { from: 7, to: 10, kind: 'gone', x: 2330, y: 1690 },
   { from: 10, to: 16, ...post(2532, 1743, Math.PI, { sit: 1, reading: 1, glances: [0, -.35, .35, 0], every: [4, 7], hold: [1.6, 2.6] }) },
   { from: 16, to: 20, kind: 'wander', pts: [...RVZONE, [1500, 1650], [1650, 1350]], pause: [3, 6] },
   { from: 20, to: 7, kind: 'gone', x: 2330, y: 1690 },
 ]);
-mkNPC('Sal', { shirt: 'deep', pants: 'ink', hair: 'ink', skin: 'skinD', hat: 'cap' }, {}, [
+mkNPC('Sal', { shirt: 'paper', pattern: 'stripeV', pants: 'ink', skin: 'skinD', hair: 'ink', hairDo: 'short', hat: 'papercap', bowtie: 1, w: 18 }, {}, [
   { from: 8, to: 20, kind: 'vendor', x: 1150, y: 1632, face: HALF, glances: [-.9, .9], back: [1268, 1448, Math.PI], trip: [13, 21], tripHold: [4, 6.5] },
   { from: 20, to: 8, kind: 'gone', x: 1150, y: 1632 },
 ]);
-mkNPC('Ranger Oakes', { shirt: 'earth', pants: 'pine', hair: 'bark', skin: 'skinL', hat: 'ranger' }, { speed: 80, chase: 160, range: 230, half: .6, giveUp: 3, flashlight: 1 }, [
+mkNPC('Ranger Oakes', { shirt: 'earth', pattern: 'ranger', pants: 'pine', belt: 1, skin: 'skinL', hair: 'bark', hairDo: 'short', mustache: 1, hat: 'ranger', prop: 'radio', w: 20 }, { speed: 80, chase: 160, range: 230, half: .6, giveUp: 3, flashlight: 1 }, [
   { from: 7, to: 12, kind: 'patrol', pts: RANGER_ROUTE, pause: [1.5, 3.5] },
   { from: 12, to: 13, ...post(598, 1815, Math.PI, { sit: 1, glances: [-1.2, 1.2, -HALF] }) },
   { from: 13, to: 2, kind: 'patrol', pts: RANGER_ROUTE, pause: [1.5, 3.5] },
@@ -1143,9 +1170,16 @@ function steerToGoal(dt) {
   const d = Math.max(1, dist(P.x, P.y, wp.x, wp.y));
   return [(wp.x - P.x) / d, (wp.y - P.y) / d];
 }
+let scout = 0;
+function climbLookout() {
+  if (dark > .5) { toast('It\u2019s too dark to see much from up there. Come back in daylight.'); return; }
+  scout = 7; P.vx = P.vy = 0; P.goal = null; P.autoGrab = null; SFX.goal();
+  toast('From the fire lookout, Bramble can see the whole campground. Move to climb down.', 'good');
+}
 function arriveAt(o) {
   if (o.kind === 'den') openDen();
   else if (o.kind === 'magpie') openShop();
+  else if (o.kind === 'lookout') climbLookout();
   else if (o.kind === 'cones') gatherCones(o);
   else if (o.kind === 'loot') { const st = lootState(o); if (st.ok) P.autoGrab = o; else { toast(st.msg); if (st.full) hint('full'); } }
 }
@@ -1201,6 +1235,7 @@ function updatePlayer(dt) {
   P.tiptoe = !!(keys.shift || tipLock || joyTip || pad.tip);
   const ag = P.autoGrab, autoHeld = !!(ag && dist(P.x, P.y, ag.x, ag.y) < ag.r);
   const held = !!(keys[' '] || keys.e || touchGrab || pad.grab || autoHeld), pressed = held && !P.prevHeld; P.prevHeld = held;
+  if (scout > 0) { scout -= dt; if ((ix || iy || pressed) && scout < 6.4) scout = 0; P.vx = P.vy = 0; P.moving = false; P.near = null; return; }
   const mag = Math.hypot(ix, iy);
   if (mag > 0 && P.rum) P.rum = null;
   let sp = P.tiptoe ? 74 * (S.upgrades.soft ? 1.15 : 1) : 152 * (S.upgrades.legs ? 1.15 : 1);
@@ -1238,6 +1273,7 @@ function updatePlayer(dt) {
   if (pressed && near) {
     if (near.kind === 'den') { openDen(); return; }
     if (near.kind === 'magpie') { openShop(); return; }
+    if (near.kind === 'lookout') { climbLookout(); return; }
     if (near.kind === 'cones') gatherCones(near);
     else if (near.kind === 'loot' && !P.rum) startRummage(near, false);
   } else if (held && near && near.kind === 'loot' && !P.rum && !P.moving) startRummage(near, true);
@@ -1499,10 +1535,11 @@ addEventListener('resize', resize);
 function shake(a) { cam.shake = Math.max(cam.shake, a); }
 function camTarget() {
   if (S.mode === 'title') return [1480 + Math.sin(time * .05) * 520, 1050 + Math.cos(time * .037) * 330];
+  if (scout > 0) return [1640, 1180];
   return [P.x + P.vx * .4, P.y - 20 + P.vy * .32];
 }
 function updateCamera(dt, snap) {
-  const zt = S.mode === 'play' && npcs.some(n => n.mode === 'chase') ? 1.08 : 1;
+  const zt = scout > 0 ? .5 : S.mode === 'play' && npcs.some(n => n.mode === 'chase') ? 1.08 : 1;
   cam.zk += (zt - cam.zk) * (snap ? 1 : 1 - Math.exp(-dt * 2.5));
   Z = ZOOM * cam.zk;
   const [tx, ty] = camTarget(), vw = VW / Z, vh = VH / Z;
@@ -1694,6 +1731,11 @@ function drawLake(c) {
     const tw = Math.pow(Math.max(0, Math.sin(time * 2.2 + i * 1.7)), 6); if (tw < .05) continue;
     c.strokeStyle = kA('paper', (tw * sa).toFixed(3)); c.lineWidth = 1.6; seg(c, sx - 5 * tw, sy, sx + 5 * tw, sy); seg(c, sx, sy - 3 * tw, sx, sy + 3 * tw);
   }
+  const gl = raining() ? 0 : Math.max(0, 1 - Math.abs(S.hour - 18.2) / 1.6);
+  if (gl > .02) for (let i = 0; i < 26; i++) {
+    const t = i / 28, px = 2440 - t * 400 + Math.sin(time * 1.3 + i * 1.7) * 7, py = 690 - t * 220, w = 5 + t * 26;
+    c.fillStyle = kA('sun', (gl * (1 - t * .55)).toFixed(3)); c.fillRect(px - w / 2, py, w, 2.6);
+  }
   if (fish.on) {
     const k = fish.age;
     if (k < .6) { const q = k / .6; c.save(); c.translate(fish.x + (q - .5) * 34, fish.y - Math.sin(q * Math.PI) * 22); c.rotate((q - .5) * 2.2); ell(c, 0, 0, 7, 3, K.paper); tri(c, -6, 0, -11, -4, -11, 4, K.paper); c.restore(); }
@@ -1739,6 +1781,7 @@ function drawTree(c, t) {
     blobs(c, [[x + lit * 8 * s, y - 6 * s, 25 * s], [x + lit * 18 * s, y + 4 * s, 15 * s]], K.moss);
     blobs(c, [[x + lit * 12 * s, y - 16 * s, 10 * s]], K.leafM);
     if (t.type === 'apple' && t.loot) { const n = t.loot.stocks.apple || 0; for (let i = 0; i < n * 3; i++) circ(c, x + Math.cos(i * 2.1) * 22 * s, y + Math.sin(i * 1.7) * 16 * s, 3.8, K.rust); }
+    if (t.swing) { const sx = t.x - 16 * s, sw2 = Math.sin(time * 1.3) * 5; c.globalAlpha = 1; c.strokeStyle = K.sand; c.lineWidth = 1.5; seg(c, sx - 7, y + 20 * s, sx - 7 + sw2, t.y + 8); seg(c, sx + 7, y + 20 * s, sx + 7 + sw2, t.y + 8); keyed(c, () => rrect(c, sx - 10 + sw2, t.y + 6, 20, 5, 1.5), K.earth, K.ink, 1.2); }
   }
   c.globalAlpha = 1;
 }
@@ -2060,63 +2103,293 @@ function drawPlayer(c) {
   drawBramble(c, P.x, P.y, P.face, time, { moving: P.moving && S.mode === 'play', tiptoe: P.tiptoe, pouch: S.pouch.length, crown: S.upgrades.crown, rum: !!P.rum,
     lean: clamp(-P.vx / 1000, -.15, .15) + (P.tiptoe ? Math.cos(P.face) * -.08 : 0), look: P.idleT > 2.5 ? Math.sin(time * 1.1) : 0, glow: dark > .3 });
 }
+// People: flat poster figures, each with a silhouette, clothes and props of their own.
 function drawHuman(c, n) {
-  const s = n.size, x = n.x, y = n.y, fx = Math.cos(n.dir), fy = Math.sin(n.dir);
-  const w = n.walking ? Math.sin(n.anim * 10) : 0, sit = n.sitting ? 7 * s : 0;
-  const shirt = K[n.shirt], pants = K[n.pants], skin = K[n.skin], hair = K[n.hair];
-  shadow(c, x, y + 1, 11 * s, 4.5 * s);
-  c.fillStyle = pants;
-  if (!n.sitting) { c.fillRect(x - 5 * s, y - 12 * s + Math.max(0, w) * 2, 4 * s, 12 * s - Math.max(0, w) * 2); c.fillRect(x + 1 * s, y - 12 * s + Math.max(0, -w) * 2, 4 * s, 12 * s - Math.max(0, -w) * 2); }
-  else fillRR(c, x - 7 * s, y - 9 * s, 14 * s, 7 * s, 3 * s, pants);
-  const top = y - 29 * s + sit + (n.sitting ? Math.sin(time * 2 + n.x) * .6 : 0);
-  const arm = K.mix(n.shirt, 'ink', .28);
-  ell(c, x - 10 * s, top + 9 * s + w * 1.6, 3.4 * s, 5.6 * s, arm); ell(c, x + 10 * s, top + 9 * s - w * 1.6, 3.4 * s, 5.6 * s, arm);
-  keyed(c, () => rrect(c, x - 9 * s, top, 18 * s, 18 * s, 6 * s), shirt, K.ink, 1.3);
-  if (n.apron) fillRR(c, x - 6 * s, top + 4 * s, 12 * s, 14 * s, 3 * s, K.paper);
-  if (n.vest) { c.fillStyle = K[n.vest]; c.fillRect(x - 9 * s, top + 3 * s, 5 * s, 14 * s); c.fillRect(x + 4 * s, top + 3 * s, 5 * s, 14 * s); }
-  if (n.hat === 'ranger') { c.fillStyle = K.sun; c.fillRect(x - 1.5 * s, top + 3 * s, 3 * s, 3 * s); }
-  const hy = top - 7 * s - Math.abs(w) * 1.2 * s;
-  keyed(c, () => { c.beginPath(); c.arc(x, hy, 8 * s, 0, TAU); }, skin, K.ink, 1.2);
-  if (fy < -.35) circ(c, x, hy - .5 * s, 8.3 * s, hair);
-  else {
-    c.beginPath(); c.arc(x - fx * 1.2 * s, hy - 1.2 * s, 8.3 * s, Math.PI * 1.02, Math.PI * 1.98); c.closePath(); c.fillStyle = hair; c.fill();
-    const ex = x + fx * 3.2 * s, ey = hy + fy * 1.6 * s + .8 * s;
-    circ(c, ex - 2.6 * s, ey, 1.2 * s, K.ink); circ(c, ex + 2.6 * s, ey, 1.2 * s, K.ink);
-  }
-  if (n.bun) circ(c, x - fx * 3 * s, hy - 8 * s, 4 * s, hair);
-  switch (n.hat) {
-    case 'ranger': ell(c, x, hy - 4 * s, 13 * s, 4.6 * s, K.pine); fillRR(c, x - 6 * s, hy - 12 * s, 12 * s, 8 * s, 3 * s, K.mossD); c.fillStyle = K.ink; c.fillRect(x - 6 * s, hy - 6 * s, 12 * s, 2 * s); break;
-    case 'cap': c.beginPath(); c.arc(x, hy - 3 * s, 8.4 * s, Math.PI, 0); c.closePath(); c.fillStyle = K.rust; c.fill(); ell(c, x + fx * 7 * s, hy - 3 * s + fy * 2 * s, 6 * s, 2.6 * s, K.mix('rust', 'ink', .3)); break;
-    case 'bucket': poly(c, [[x - 11 * s, hy - 3 * s], [x - 7 * s, hy - 12 * s], [x + 7 * s, hy - 12 * s], [x + 11 * s, hy - 3 * s]], K.earth); break;
-    case 'chef': blobs(c, [[x - 4 * s, hy - 11 * s, 5 * s], [x + 4 * s, hy - 11 * s, 5 * s], [x, hy - 14 * s, 5.5 * s]], K.paper); c.fillStyle = K.mix('paper', 'ink', .12); c.fillRect(x - 7 * s, hy - 8 * s, 14 * s, 4 * s); break;
-    case 'sunhat': ell(c, x, hy - 4 * s, 14 * s, 5.4 * s, K.sun); fillRR(c, x - 6 * s, hy - 12 * s, 12 * s, 8 * s, 4 * s, K.mix('sun', 'earth', .35)); c.fillStyle = K.rust; c.fillRect(x - 6 * s, hy - 7 * s, 12 * s, 2 * s); break;
-    case 'beanie': c.beginPath(); c.arc(x, hy - 3 * s, 8.4 * s, Math.PI, 0); c.closePath(); c.fillStyle = K.rust; c.fill(); c.fillStyle = K.ink; c.fillRect(x - 1 * s, hy - 15 * s, 2 * s, 5 * s); ell(c, x + Math.sin(time * 14) * 5 * s, hy - 15 * s, 5 * s, 1.4 * s, K.sun); break;
-  }
+  const s = n.size * 1.08, x = n.x, y = n.y, fx = Math.cos(n.dir), fy = Math.sin(n.dir);
+  const back = fy < -.45, prof = !back && fy < .45, sd = fx >= 0 ? 1 : -1;
+  const wk = n.walking ? Math.sin(n.anim * 10) : 0, bob = Math.abs(wk) * 1.2 * s;
+  const skin = K[n.skin], hair = K[n.hair], shirt = K[n.shirt], pants = K[n.pants || 'ink'], shoe = K.mix('bark', 'ink', .55), skinD = K.mix('earth', 'bark', .55);
   const t = n.task, settled = n.mode === 'routine' && n.arrived && t;
-  if (n.vis && n.vis.flash) { c.save(); c.translate(x + fx * 9 * s, top + 10 * s); c.rotate(n.dir); fillRR(c, -2, -2.5, 10, 5, 2, K.ink); circ(c, 9, 0, 2.6, K.sun); c.restore(); }
+  shadow(c, x, y + 1, 12 * s, 4.6 * s);
+  const hipY = n.sitting ? y - 8 * s : y - 13 * s - bob * .3;
+  c.lineCap = 'round';
+  if (n.sitting) {
+    if (!back) { fillRR(c, x - 6.5 * s, hipY - 1 * s, 13 * s, 7.5 * s, 3 * s, n.dress || n.shorts ? skin : pants); for (const k of [-1, 1]) ell(c, x + k * 3.6 * s, hipY + 7 * s, 3 * s, 2.2 * s, shoe); }
+  } else {
+    for (const k of [-1, 1]) {
+      const lift = Math.max(0, k * wk) * 3 * s, lx = x + (prof ? k * wk * 3.2 * s : k * 3.4 * s);
+      c.strokeStyle = n.dress || n.shorts ? skin : pants; c.lineWidth = (n.dress ? 3 : 4.6) * s;
+      seg(c, lx, hipY, lx, y - 2.5 * s - lift);
+      ell(c, lx + (prof ? sd * 1.6 * s : 0), y - 1.8 * s - lift, 3.3 * s, 2.2 * s, shoe);
+    }
+    if (n.shorts) fillRR(c, x - 7 * s, hipY - 1.5 * s, 14 * s, 7 * s, 2 * s, pants);
+  }
+  const W = n.w * s * (prof ? .8 : 1), top = hipY - 18 * s, bl = (n.belly || 0) * s, hem = n.dress ? hipY + 9 * s : hipY, flare = n.dress ? 3.5 * s : 0;
+  const pack = () => { if (n.pack) keyed(c, () => rrect(c, (back ? x : x - sd * W * .5) - 7 * s, top + 2 * s, 14 * s, 15 * s, 3 * s), K[n.pack], K.ink, 1.2); };
+  const torso = () => {
+    c.beginPath(); c.moveTo(x - W / 2, top + 5 * s);
+    c.quadraticCurveTo(x - W / 2, top, x - W / 2 + 4 * s, top); c.lineTo(x + W / 2 - 4 * s, top); c.quadraticCurveTo(x + W / 2, top, x + W / 2, top + 5 * s);
+    c.quadraticCurveTo(x + W / 2 + bl, hipY - 6 * s, x + W / 2 - 1 * s + flare, hem);
+    c.lineTo(x - W / 2 + 1 * s - flare, hem);
+    c.quadraticCurveTo(x - W / 2 - bl, hipY - 6 * s, x - W / 2, top + 5 * s); c.closePath();
+  };
+  if (!back) pack();
+  keyed(c, torso, shirt, K.ink, 1.3);
+  c.save(); torso(); c.clip();
+  switch (n.pattern) {
+    case 'plaid':
+      c.strokeStyle = kA('rust', .6); c.lineWidth = 1.6 * s;
+      for (let k = -3; k <= 3; k++) seg(c, x + k * 5 * s, top, x + k * 5 * s, hem);
+      for (let k = 1; k < 5; k++) seg(c, x - W, top + k * 4.5 * s, x + W, top + k * 4.5 * s);
+      c.strokeStyle = kA('ink', .25); c.lineWidth = .8 * s; for (let k = -3; k <= 3; k++) seg(c, x + (k + .5) * 5 * s, top, x + (k + .5) * 5 * s, hem);
+      break;
+    case 'stripe': c.fillStyle = K.rust; for (let yy = top + 3 * s; yy < hem; yy += 4.5 * s) c.fillRect(x - W, yy, W * 2, 2 * s); break;
+    case 'stripeV': c.fillStyle = K.rust; for (let xx = x - W / 2 + 2 * s; xx < x + W / 2; xx += 4 * s) c.fillRect(xx, top, 1.6 * s, hem - top); break;
+    case 'zip': {
+      const zx = x + (prof ? sd * W * .3 : 0);
+      if (!back) { c.strokeStyle = K.paper; c.lineWidth = 1.2 * s; seg(c, zx, top + 2 * s, zx, hem); }
+      c.fillStyle = K.mix('water', 'ink', .3); c.fillRect(x - W, hem - 3 * s, W * 2, 3 * s);
+      break;
+    }
+    case 'cardigan':
+      if (!back) {
+        poly(c, [[x - 4 * s, top], [x + 4 * s, top], [x, top + 8 * s]], K.paper);
+        c.fillStyle = K.mix('rust', 'ink', .25); c.fillRect(x - .7 * s, top + 8 * s, 1.4 * s, hem - top - 8 * s);
+        for (let k = 0; k < 3; k++) circ(c, x + 2 * s, top + 10 * s + k * 3 * s, .9 * s, K.paper);
+      }
+      c.fillStyle = K.mix('rust', 'ink', .2); c.fillRect(x - W, hem - 2.5 * s, W * 2, 2.5 * s);
+      break;
+    case 'ranger':
+      if (!back) { for (const k of [-1, 1]) fillRR(c, x + k * 4.5 * s - 2.5 * s, top + 4 * s, 5 * s, 4.5 * s, 1, K.mix('earth', 'ink', .2)); circ(c, x - 4.5 * s, top + 3 * s, 1.7 * s, K.sun); }
+      circ(c, x + (back ? 0 : sd * W * .4), top + 4 * s, 2.6 * s, K.pine);
+      break;
+  }
+  if (n.apron && !back) { fillRR(c, x - W * .32, top + 4 * s, W * .64, hem - top - 2 * s, 2 * s, K.paper); c.fillStyle = kA('water', .85); for (let k = 0; k < 3; k++) c.fillRect(x - W * .32, top + 7 * s + k * 4 * s, W * .64, 1.3 * s); }
+  if (n.vest) {
+    c.fillStyle = K[n.vest]; c.fillRect(x - W / 2, top, W * .3, hem - top); c.fillRect(x + W * .2, top, W * .3, hem - top);
+    if (!back) { for (const k of [-1, 1]) fillRR(c, x + k * (W / 2 - 3 * s) - 2 * s, top + 8 * s, 4 * s, 3.5 * s, 1, K.mix(n.vest, 'ink', .25)); circ(c, x - W / 2 + 3 * s, top + 4 * s, 1 * s, K.rust); circ(c, x + W / 2 - 3 * s, top + 4.5 * s, 1 * s, K.sun); }
+  }
+  if (n.waders) {
+    c.fillStyle = pants; c.fillRect(x - W, hipY - 7 * s, W * 2, 8 * s);
+    if (!back) c.fillRect(x - 4 * s, top + 6 * s, 8 * s, 6 * s);
+    c.strokeStyle = pants; c.lineWidth = 1.6 * s; seg(c, x - 3.5 * s, top + 7 * s, x - W * .35, top); seg(c, x + 3.5 * s, top + 7 * s, x + W * .35, top);
+  }
+  if (n.belt) { c.fillStyle = K.ink; c.fillRect(x - W, hipY - 2.6 * s, W * 2, 2.4 * s); if (!back) fillRR(c, x - 1.8 * s, hipY - 3 * s, 3.6 * s, 3.2 * s, .6, K.sun); }
+  c.restore();
+  if (back) pack();
+  if (n.prop === 'radio') { const rx = x + sd * W * .45; fillRR(c, rx - 2 * s, hipY - 5 * s, 4 * s, 6 * s, 1, K.ink); c.strokeStyle = K.ink; c.lineWidth = 1; seg(c, rx + 1 * s, hipY - 5 * s, rx + 1 * s, hipY - 10 * s); }
+  if (n.prop === 'binoculars' && !back) {
+    c.strokeStyle = K.ink; c.lineWidth = 1; seg(c, x - 4 * s, top + 1, x - 2 * s, top + 8 * s); seg(c, x + 4 * s, top + 1, x + 2 * s, top + 8 * s);
+    fillRR(c, x - 4.5 * s, top + 7 * s, 4 * s, 5 * s, 1.5, K.ink); fillRR(c, x + .5 * s, top + 7 * s, 4 * s, 5 * s, 1.5, K.ink);
+  }
+  if (n.bowtie && !back) { tri(c, x, top + 1.5 * s, x - 3.5 * s, top - .5 * s, x - 3.5 * s, top + 3.5 * s, K.rust); tri(c, x, top + 1.5 * s, x + 3.5 * s, top - .5 * s, x + 3.5 * s, top + 3.5 * s, K.rust); }
+  // arms and hands, posed for whatever they're doing
+  let hL = [x - W / 2 - 2 * s, hipY - 3 * s + wk * 3 * s], hR = [x + W / 2 + 2 * s, hipY - 3 * s - wk * 3 * s];
+  if (n.sitting) { hL = [x - W / 2 + 1 * s, hipY - 2 * s]; hR = [x + W / 2 - 1 * s, hipY - 2 * s]; }
+  const fore = [x + fx * 9 * s, top + 9 * s + fy * 4 * s];
+  if (settled && (t.rod || t.grill)) hR = fore;
+  if (n.vis && n.vis.flash) hR = fore;
+  if (settled && t.reading && !n.glancing) { hL = [x - 3 * s + fx * 6 * s, top + 10 * s]; hR = [x + 3 * s + fx * 6 * s, top + 10 * s]; }
+  if (settled && t.range && n.sitting && isFireLit(S.hour)) hR = fore;
+  if (n.prop === 'net') hR = [x + W / 2 + 3 * s, hipY - 6 * s];
+  const sleeve = K.mix(n.shirt, 'ink', .2);
+  for (const [hx2, hy2, k] of [[hL[0], hL[1], -1], [hR[0], hR[1], 1]]) {
+    const sx = x + k * (W / 2 - 1.5 * s), sy = top + 3.5 * s;
+    c.strokeStyle = sleeve; c.lineWidth = 4.4 * s; seg(c, sx, sy, hx2, hy2);
+    if (n.rolled) { c.strokeStyle = skin; c.lineWidth = 3.4 * s; seg(c, lerp(sx, hx2, .55), lerp(sy, hy2, .55), hx2, hy2); }
+    circ(c, hx2, hy2, 2.4 * s, skin);
+  }
+  // head, hair and face
+  const hy = top - 7.5 * s - bob * .4, hr = (n.size < .9 ? 8.6 : 7.6) * s;
+  c.fillStyle = skin; c.fillRect(x - 2.2 * s, hy + hr - 3 * s, 4.4 * s, 4 * s);
+  if (n.hairDo === 'long') fillRR(c, x - hr - 1.2 * s, hy - 2 * s, hr * 2 + 2.4 * s, hr + 8 * s, 4 * s, hair);
+  if (n.hairDo === 'braid' && (back || prof)) { const bx = back ? x : x - sd * hr * .7; for (let k = 0; k < 4; k++) ell(c, bx, hy + hr + k * 3.2 * s, 2.2 * s, 2 * s, hair); }
+  keyed(c, () => { c.beginPath(); c.arc(x, hy, hr, 0, TAU); }, skin, K.ink, 1.2);
+  if (back) {
+    circ(c, x, hy - .3 * s, hr + .3 * s, hair);
+    if (n.hairDo === 'bun') circ(c, x, hy - hr * .6, 3.8 * s, hair);
+  } else {
+    c.beginPath(); c.arc(x - fx * 1.4 * s, hy - 1.6 * s, hr + .5 * s, Math.PI * 1.04, Math.PI * 1.96); c.closePath(); c.fillStyle = hair; c.fill();
+    if (n.hairDo === 'bun') circ(c, x - fx * 2 * s, hy - hr - 1.4 * s, 3.7 * s, hair);
+    if (n.hairDo === 'long') for (const k of [-1, 1]) if (!prof || k !== sd) fillRR(c, x + k * (hr - 1.2 * s) - 1.6 * s, hy - 2 * s, 3.2 * s, hr + 5 * s, 1.6 * s, hair);
+    const ex = x + fx * 3.4 * s, ey = hy + fy * 1.2 * s + .6 * s;
+    if (n.beard) { c.beginPath(); c.ellipse(x + fx * 2 * s, hy + 3.8 * s, hr * .86, hr * .6, 0, 0, Math.PI); c.closePath(); c.fillStyle = hair; c.fill(); }
+    if (prof) {
+      circ(c, ex + sd * .6 * s, ey, 1.2 * s, K.ink);
+      tri(c, x + sd * (hr - 1.4 * s), hy, x + sd * (hr + 2.4 * s), hy + 2.6 * s, x + sd * (hr - 1.4 * s), hy + 3.6 * s, skinD);
+    } else {
+      circ(c, ex - 2.7 * s, ey, 1.2 * s, K.ink); circ(c, ex + 2.7 * s, ey, 1.2 * s, K.ink);
+      ell(c, ex, ey + 2.4 * s, 1.1 * s, 1.4 * s, skinD);
+    }
+    if (n.mustache) ell(c, ex + (prof ? sd * 1.2 * s : 0), ey + 4 * s, (prof ? 2.6 : 3.6) * s, 1.3 * s, hair);
+    if (n.glasses === 'specs') {
+      c.strokeStyle = K.ink; c.lineWidth = .9;
+      if (prof) { c.beginPath(); c.arc(ex + sd * .6 * s, ey, 2.3 * s, 0, TAU); c.stroke(); }
+      else { for (const k of [-1, 1]) { c.beginPath(); c.arc(ex + k * 2.7 * s, ey, 2.3 * s, 0, TAU); c.stroke(); } seg(c, ex - .4 * s, ey, ex + .4 * s, ey); }
+    }
+    if (n.glasses === 'shades') {
+      if (prof) fillRR(c, ex + sd * .6 * s - 2.4 * s, ey - 1.6 * s, 4.8 * s, 3.2 * s, 1.2, K.ink);
+      else for (const k of [-1, 1]) fillRR(c, ex + k * 2.7 * s - 2.3 * s, ey - 1.6 * s, 4.6 * s, 3.2 * s, 1.2, K.ink);
+    }
+  }
+  switch (n.hat) {
+    case 'ranger':
+      ell(c, x, hy - 4 * s, 14.5 * s, 5 * s, K.mix('pine', 'earth', .3));
+      poly(c, [[x - 6.5 * s, hy - 5 * s], [x - 4.5 * s, hy - 14 * s], [x, hy - 11.5 * s], [x + 4.5 * s, hy - 14 * s], [x + 6.5 * s, hy - 5 * s]], K.mix('pine', 'earth', .45));
+      c.fillStyle = K.bark; c.fillRect(x - 6.5 * s, hy - 7 * s, 13 * s, 2 * s);
+      break;
+    case 'bucket':
+      poly(c, [[x - 11 * s, hy - 3 * s], [x - 7 * s, hy - 12 * s], [x + 7 * s, hy - 12 * s], [x + 11 * s, hy - 3 * s]], K.earth);
+      c.fillStyle = K.mix('earth', 'ink', .25); c.fillRect(x - 8 * s, hy - 6 * s, 16 * s, 1.6 * s);
+      circ(c, x + 5 * s, hy - 8 * s, 1.4 * s, K.rust); circ(c, x + 2 * s, hy - 9.5 * s, 1.2 * s, K.sun);
+      break;
+    case 'chef': blobs(c, [[x - 4 * s, hy - 11 * s, 5 * s], [x + 4 * s, hy - 11 * s, 5 * s], [x, hy - 14 * s, 5.5 * s]], K.paper); c.fillStyle = K.mix('paper', 'ink', .12); c.fillRect(x - 7 * s, hy - 8 * s, 14 * s, 4 * s); break;
+    case 'sunhat':
+      ell(c, x, hy - 4 * s, 15 * s, 5.6 * s, K.sun); fillRR(c, x - 6 * s, hy - 12 * s, 12 * s, 8 * s, 4 * s, K.mix('sun', 'earth', .35));
+      c.fillStyle = K.rust; c.fillRect(x - 6 * s, hy - 7 * s, 12 * s, 2 * s); circ(c, x + 6 * s, hy - 6.5 * s, 2.4 * s, K.paper); circ(c, x + 6 * s, hy - 6.5 * s, .9 * s, K.sun);
+      break;
+    case 'beanie':
+      c.beginPath(); c.arc(x, hy - 3 * s, 8.6 * s, Math.PI, 0); c.closePath(); c.fillStyle = K.rust; c.fill();
+      c.fillStyle = K.ink; c.fillRect(x - 1 * s, hy - 15 * s, 2 * s, 5 * s); ell(c, x + Math.sin(time * 14) * 5 * s, hy - 15 * s, 5 * s, 1.4 * s, K.sun);
+      break;
+    case 'cap': c.beginPath(); c.arc(x, hy - 3 * s, 8.4 * s, Math.PI, 0); c.closePath(); c.fillStyle = K.rust; c.fill(); ell(c, x + fx * 7 * s, hy - 3 * s + fy * 2 * s, 6 * s, 2.6 * s, K.mix('rust', 'ink', .3)); break;
+    case 'papercap':
+      poly(c, [[x - 8.5 * s, hy - 4 * s], [x - 5 * s, hy - 11 * s], [x + 7 * s, hy - 10 * s], [x + 8.5 * s, hy - 4 * s]], K.paper);
+      c.fillStyle = K.rust; c.fillRect(x - 8 * s, hy - 6.4 * s, 16 * s, 1.8 * s);
+      break;
+  }
+  // held things
+  if (n.vis && n.vis.flash) { c.save(); c.translate(hR[0], hR[1]); c.rotate(n.dir); fillRR(c, -2, -2.5, 10, 5, 2, K.ink); circ(c, 9, 0, 2.6, K.sun); c.restore(); }
   if (settled && t.rod) {
     const sw = Math.sin(time * .9) * 3, tug = Math.pow(Math.max(0, Math.sin(time * .7)), 10) * 7, tx = x + 14 + sw, ty = top - 34 - tug * .4;
-    c.strokeStyle = K.bark; c.lineWidth = 1.8; seg(c, x + 4 * s, top + 8 * s, tx, ty);
+    c.strokeStyle = K.bark; c.lineWidth = 1.8; seg(c, hR[0], hR[1], tx, ty);
     const bx = x + 20, by = top - 62 + Math.sin(time * 2) * 1.5 + tug;
     c.strokeStyle = kA('paper', .7); c.lineWidth = .9; c.beginPath(); c.moveTo(tx, ty); c.quadraticCurveTo(tx + 6, (ty + by) / 2 + 4, bx, by); c.stroke();
     circ(c, bx, by, 2.4, K.rust);
     if (tug > 2) { c.strokeStyle = kA('paper', .6); c.beginPath(); c.ellipse(bx, by + 2, 6 + tug, 2 + tug * .3, 0, 0, TAU); c.stroke(); }
   }
   if (settled && t.grill && !n.glancing) {
-    const f = Math.max(0, Math.sin(time * 3.2 + n.x)), hx = x - 10 * s, hy2 = top + 8 * s - f * 6;
-    c.strokeStyle = K.stoneD; c.lineWidth = 2; seg(c, hx, hy2, hx - 12, hy2 - 2 - f * 4); fillRR(c, hx - 19, hy2 - 6 - f * 6, 8, 5, 1, K.stone);
+    const f = Math.max(0, Math.sin(time * 3.2 + n.x)), ex2 = hR[0] + fx * 12 * s, ey2 = hR[1] - 2 - f * 6;
+    c.strokeStyle = K.stoneD; c.lineWidth = 2; seg(c, hR[0], hR[1], ex2, ey2); fillRR(c, ex2 - 4, ey2 - 3, 8, 5, 1, K.stone);
   }
   if (settled && t.reading && !n.glancing) {
-    const bx = x + fx * 6 - 6, by = top + 6 * s, p = (time * .18 + n.x * .01) % 1;
+    const bx = x + fx * 6 * s - 6, by = top + 6 * s, p = (time * .18 + n.x * .01) % 1;
     fillRR(c, bx, by, 12, 9, 1.5, K.water); c.fillStyle = K.paper; c.fillRect(bx + 1.5, by + 1.5, 9, 6);
-    if (p < .1) { c.fillStyle = K.paper; c.fillRect(bx + 6, by + 1, Math.cos(p / .1 * Math.PI) * 4.5, 7); }
+    if (p < .1) c.fillRect(bx + 6, by + 1, Math.cos(p / .1 * Math.PI) * 4.5, 7);
   }
   if (settled && t.range && n.sitting && isFireLit(S.hour)) {
-    const ex = x + fx * 34, ey = top + 4 + fy * 20, done = (Math.sin(time * .3 + n.x) + 1) / 2;
-    c.strokeStyle = K.bark; c.lineWidth = 1.6; seg(c, x + fx * 6, top + 10 * s, ex, ey);
-    fillRR(c, ex - 3, ey - 3, 6, 6, 2, done > .6 ? K.earth : K.paper);
+    const ex2 = x + fx * 34, ey2 = top + 4 + fy * 20, done = (Math.sin(time * .3 + n.x) + 1) / 2;
+    c.strokeStyle = K.bark; c.lineWidth = 1.6; seg(c, hR[0], hR[1], ex2, ey2);
+    fillRR(c, ex2 - 3, ey2 - 3, 6, 6, 2, done > .6 ? K.earth : K.paper);
+  }
+  if (n.prop === 'net') {
+    const [hx2, hy2] = hR, nx = hx2 + 8 * s, ny = hy2 - 29 * s;
+    c.strokeStyle = K.bark; c.lineWidth = 1.7; seg(c, hx2, hy2, hx2 + 6 * s, hy2 - 23 * s);
+    c.strokeStyle = kA('paper', .55); c.lineWidth = .7; for (let k = -1; k <= 1; k++) seg(c, nx + k * 2.4 * s, ny - 4.5 * s, nx + k * 2.4 * s, ny + 4.5 * s);
+    c.strokeStyle = K.paper; c.lineWidth = 1.4; c.beginPath(); c.ellipse(nx, ny, 5 * s, 6 * s, .3, 0, TAU); c.stroke();
   }
 }
+
+// landmarks: hand-drawn set pieces
+function drawArch(c, o) {
+  const x = o.x, y = o.y, h = 104;
+  shadow(c, x + 8, y + 6, 70, 10);
+  for (const dx of [-52, 52]) {
+    keyed(c, () => rrect(c, x + dx - 7, y - h, 14, h + 4, 5), K.bark, K.ink, 1.6);
+    c.strokeStyle = K.mix('bark', 'ink', .35); c.lineWidth = 1.2; for (let yy = y - h + 12; yy < y - 2; yy += 14) seg(c, x + dx - 6, yy, x + dx + 6, yy + 3);
+    const lx = x + dx + (dx < 0 ? -15 : 7);
+    fillRR(c, lx, y - 52, 8, 11, 2, dark > .2 ? K.sun : K.paper); c.fillStyle = K.ink; c.fillRect(lx - 1, y - 54, 10, 2.5);
+  }
+  keyed(c, () => rrect(c, x - 70, y - h - 12, 140, 13, 6), K.bark, K.ink, 1.8);
+  ell(c, x - 70, y - h - 5.5, 4, 6.5, K.earth); ell(c, x + 70, y - h - 5.5, 4, 6.5, K.earth);
+  c.strokeStyle = K.ink; c.lineWidth = 1.4; seg(c, x - 40, y - h + 1, x - 40, y - h + 10); seg(c, x + 40, y - h + 1, x + 40, y - h + 10);
+  keyed(c, () => rrect(c, x - 68, y - h + 10, 136, 24, 3), K.bark, K.ink, 1.8);
+  signText(c, 'PINEWHISTLE LAKE', x, y - h + 22.5, 11, K.paper);
+}
+function drawLookout(c, o) {
+  const x = o.x, y = o.y, top = y - 210;
+  shadow(c, x + 34, y + 8, 74, 18);
+  const L = k => lerp(-30, -15, k), R = k => lerp(30, 15, k), Y = k => lerp(y + 16, top + 6, k);
+  c.lineCap = 'round';
+  c.strokeStyle = K.mix('bark', 'ink', .25); c.lineWidth = 5; seg(c, x - 30, y - 14, x - 13, top + 6); seg(c, x + 30, y - 14, x + 13, top + 6);
+  c.strokeStyle = K.mix('bark', 'earth', .4);
+  for (let i = 0; i < 4; i++) { const k0 = i / 4, k1 = (i + 1) / 4; c.lineWidth = 2; seg(c, x + L(k0), Y(k0), x + R(k1), Y(k1)); seg(c, x + R(k0), Y(k0), x + L(k1), Y(k1)); c.lineWidth = 2.6; seg(c, x + L(k1), Y(k1), x + R(k1), Y(k1)); }
+  c.strokeStyle = K.earth; c.lineWidth = 2.4; c.beginPath();
+  for (let i = 0; i <= 6; i++) { const k = i / 6, yy = lerp(y + 6, top + 14, k), xx = (i % 2 ? 1 : -1) * lerp(18, 8, k); i ? c.lineTo(x + xx, yy) : c.moveTo(x + xx, yy); }
+  c.stroke();
+  c.strokeStyle = K.bark; c.lineWidth = 6; seg(c, x - 30, y + 16, x - 15, top + 6); seg(c, x + 30, y + 16, x + 15, top + 6);
+  fillRR(c, x - 31, top, 62, 8, 1, K.earth);
+  keyed(c, () => { c.beginPath(); c.rect(x - 24, top - 34, 48, 34); }, K.paper, K.ink, 1.8);
+  c.fillStyle = dark > .2 ? K.sun : K.water; c.fillRect(x - 20, top - 28, 40, 14);
+  c.fillStyle = K.ink; for (const wx of [-7, 7]) c.fillRect(x + wx - 1, top - 28, 2, 14);
+  c.strokeStyle = K.bark; c.lineWidth = 1.6; seg(c, x - 31, top - 7, x + 31, top - 7); for (const rx of [-31, -15, 0, 15, 31]) seg(c, x + rx, top, x + rx, top - 7);
+  keyed(c, () => { c.beginPath(); c.moveTo(x - 33, top - 33); c.lineTo(x, top - 56); c.lineTo(x + 33, top - 33); c.closePath(); }, K.rust, K.ink, 1.8);
+  c.strokeStyle = K.ink; c.lineWidth = 1.6; seg(c, x, top - 56, x, top - 78);
+  const fw = Math.sin(time * 4) * 2; poly(c, [[x, top - 78], [x + 16, top - 74 + fw], [x, top - 69]], K.sun);
+}
+function drawBench(c, o) {
+  const x = o.x, y = o.y;
+  shadow(c, x + 3, y + 4, 30, 6);
+  c.fillStyle = K.bark; for (const dx of [-22, 18]) { c.fillRect(x + dx, y - 6, 4, 10); c.fillRect(x + dx, y - 26, 4, 14); }
+  keyed(c, () => rrect(c, x - 28, y - 12, 56, 9, 2), K.earth, K.ink, 1.4);
+  keyed(c, () => rrect(c, x - 28, y - 27, 56, 8, 2), K.earth, K.ink, 1.4);
+  c.strokeStyle = K.mix('earth', 'bark', .4); c.lineWidth = 1; seg(c, x - 26, y - 23, x + 26, y - 23); seg(c, x - 26, y - 8, x + 26, y - 8);
+}
+function drawReeds(c, o) {
+  for (let i = 0; i < 7; i++) {
+    const h = hash2(i, o.seed * 10), bx = o.x - 14 + i * 4.6, ht = 22 + h * 16, sw = Math.sin(time * 1.6 + i + o.seed * 5) * 3;
+    c.strokeStyle = i % 2 ? K.moss : K.mossD; c.lineWidth = 1.9; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(bx, o.y); c.quadraticCurveTo(bx + sw * .5, o.y - ht * .6, bx + sw, o.y - ht); c.stroke();
+    if (i % 2 === 0) ell(c, bx + sw, o.y - ht + 3, 2.3, 5.2, K.bark);
+  }
+}
+function drawOuthouse(c, o) {
+  const x = o.x, y = o.y, door = K.mix('earth', 'bark', .35);
+  shadow(c, x + 6, y + 2, 24, 7);
+  keyed(c, () => { c.beginPath(); c.rect(x - 18, y - 46, 36, 46); }, K.earth, K.ink, 1.8);
+  c.strokeStyle = K.mix('earth', 'bark', .5); c.lineWidth = 1; for (let xx = x - 12; xx < x + 18; xx += 6) seg(c, xx, y - 44, xx, y);
+  c.fillStyle = door; c.fillRect(x - 11, y - 38, 22, 38);
+  circ(c, x, y - 30, 4.6, K.ink); circ(c, x + 2.2, y - 31.2, 4.1, door);
+  circ(c, x + 7, y - 18, 1.4, K.sun);
+  keyed(c, () => { c.beginPath(); c.moveTo(x - 23, y - 42); c.lineTo(x + 23, y - 51); c.lineTo(x + 23, y - 45); c.lineTo(x - 23, y - 36); c.closePath(); }, K.rust, K.ink, 1.6);
+}
+function drawWoodpile(c, o) {
+  const x = o.x, y = o.y;
+  shadow(c, x + 6, y + 2, 22, 6);
+  c.fillStyle = K.bark; c.fillRect(x - 17, y - 64, 34, 64);
+  for (let r = 0; r < 6; r++) for (let k = 0; k < 3; k++) { const lx = x - 11 + k * 11 + (r % 2 ? 5 : 0), ly = y - 6 - r * 10.5; if (lx > x + 14) continue; circ(c, lx, ly, 5.4, K.earth); c.strokeStyle = K.bark; c.lineWidth = 1; c.beginPath(); c.arc(lx, ly, 2.6, 0, TAU); c.stroke(); }
+  c.strokeStyle = K.ink; c.lineWidth = 1.6; c.strokeRect(x - 15.4, y - 62.9, 34, 64);
+  ell(c, x + 30, y + 14, 9, 5, K.earth); c.fillStyle = K.bark; c.fillRect(x + 21, y + 14, 18, 6);
+  c.strokeStyle = K.bark; c.lineWidth = 2.2; seg(c, x + 30, y + 12, x + 40, y - 2); poly(c, [[x + 27, y + 9], [x + 34, y + 6], [x + 33, y + 14]], K.stone);
+}
+function drawMapboard(c, o) {
+  const x = o.x, y = o.y;
+  shadow(c, x + 4, y + 2, 30, 6);
+  c.fillStyle = K.bark; c.fillRect(x - 23, y - 46, 5, 48); c.fillRect(x + 18, y - 46, 5, 48);
+  keyed(c, () => rrect(c, x - 28, y - 52, 56, 34, 2), K.bark, K.ink, 1.6);
+  c.drawImage(mm, x - 25, y - 49, 50, 28);
+  keyed(c, () => { c.beginPath(); c.moveTo(x - 33, y - 52); c.lineTo(x, y - 65); c.lineTo(x + 33, y - 52); c.closePath(); }, K.rust, K.ink, 1.6);
+}
+GROUND.canoe = (c, g) => {
+  c.strokeStyle = kA('paper', .6); c.lineWidth = 1.2; seg(c, g.x - 8, g.y - 22, DOCK.x + DOCK.w - 2, g.y - 34);
+  c.save(); c.translate(g.x, g.y); c.rotate(-1.4 + Math.sin(time * .8) * .03);
+  ell(c, 3, 4, 31, 8, kA('deep', .7));
+  keyed(c, () => { c.beginPath(); c.moveTo(-31, 0); c.quadraticCurveTo(0, -11, 31, 0); c.quadraticCurveTo(0, 11, -31, 0); c.closePath(); }, K.rust, K.ink, 1.5);
+  ell(c, 0, 0, 24, 5.4, K.mix('rust', 'ink', .35));
+  c.strokeStyle = K.earth; c.lineWidth = 2.2; seg(c, -9, -5, -9, 5); seg(c, 9, -5, 9, 5);
+  c.restore();
+};
+GROUND.rowboat = (c, g) => {
+  shadow(c, g.x + 4, g.y + 4, 30, 9);
+  keyed(c, () => { c.beginPath(); c.ellipse(g.x, g.y, 30, 12, -.15, 0, TAU); }, K.water, K.ink, 1.5);
+  c.save(); c.beginPath(); c.ellipse(g.x, g.y, 30, 12, -.15, 0, TAU); c.clip(); c.fillStyle = K.paper; c.fillRect(g.x - 32, g.y - 2, 64, 4); c.restore();
+  c.strokeStyle = K.ink; c.lineWidth = 1.4; seg(c, g.x - 26, g.y + 3.5, g.x + 26, g.y - 4.5);
+};
+GROUND.flowerbed = (c, g) => {
+  fillRR(c, g.x - 18, g.y - 7, 36, 14, 3, K.bark);
+  const cols = [K.rust, K.sun, K.paper];
+  for (let i = 0; i < 9; i++) { circ(c, g.x - 13 + (i % 5) * 6.5, g.y - 4 + Math.floor(i / 5) * 6, 2.6, cols[i % 3]); }
+};
 
 // ---------- rendering: overlays ----------
 function castCone(n) {
@@ -2200,6 +2473,7 @@ let hoverObj = null, threatA = 0, threatT = 0, threatInk = 'sun';
 function hoverLabel(o) {
   if (o.kind === 'den') return 'Your den';
   if (o.kind === 'magpie') return 'Mags the Magpie';
+  if (o.kind === 'lookout') return 'Fire lookout';
   if (o.kind === 'cones') return o.n > 0 ? `Pinecones (${o.n})` : 'No pinecones left';
   const st = lootState(o), name = o.label[0].toUpperCase() + o.label.slice(1);
   return st.ok ? name : st.full ? `${name} · pouch full` : (o.avail && !o.avail(S.hour)) ? `${name} · not now` : `${name} · empty`;
@@ -2239,7 +2513,7 @@ function drawScreenFX() {
       c.fillText('z', sx + 12 + ph * 12, sy - ph * 28);
       continue;
     }
-    const [sx, sy0] = toScreen(n.x, n.y - 46 * n.size + (n.sitting ? 7 : 0));
+    const [sx, sy0] = toScreen(n.x, n.y - 58 * n.size + (n.sitting ? 9 : 0));
     if (sx > -30 && sx < VW + 30 && sy0 > -30 && sy0 < VH + 30) {
       const sy = sy0 - 14, pop = clamp((time - n.popT) / .3, 0, 1), sc = 1 + Math.sin(pop * Math.PI) * .45;
       let up = 0;
@@ -2348,6 +2622,8 @@ const mm = document.createElement('canvas'); mm.width = 200; mm.height = 150;
   for (const t of TENT_DEFS) { m.fillStyle = D[t.ink]; m.beginPath(); m.moveTo(t.x - 50, t.y + 34); m.lineTo(t.x, t.y - 46); m.lineTo(t.x + 50, t.y + 34); m.closePath(); m.fill(); }
   m.fillStyle = D.rust; m.beginPath(); m.arc(FIRE.x, FIRE.y, 40, 0, TAU); m.fill();
   m.fillStyle = D.stoneD; m.beginPath(); m.ellipse(330, 330, 100, 60, 0, 0, TAU); m.fill();
+  m.fillStyle = D.rust; m.beginPath(); m.moveTo(LOOKOUT.x - 50, LOOKOUT.y + 30); m.lineTo(LOOKOUT.x, LOOKOUT.y - 60); m.lineTo(LOOKOUT.x + 50, LOOKOUT.y + 30); m.closePath(); m.fill();
+  m.fillStyle = D.ink; m.fillRect(ARCH.x - 70, ARCH.y - 12, 140, 24); m.fillRect(SUNSET.x - 30, SUNSET.y - 12, 60, 24);
   m.restore();
 })();
 function drawMinimap() {
@@ -2365,7 +2641,7 @@ function drawMinimap() {
   c.restore();
   c.strokeStyle = DAYK.ink; c.lineWidth = 3; c.strokeRect(x, y, mw, mh);
 }
-const DRAW = { tree: drawTree, bush: drawBush, berry: drawBerry, tent: drawTent, cooler: drawCooler, table: drawTable, fire: drawFire, mallow: drawMallow, shack: drawShack, crates: drawCrates, trash: drawTrash, cabin: drawCabin, donuts: drawDonuts, rv: drawRV, grill: drawGrill, pietable: drawPieTable, chair: drawChair, bucket: drawBucket, den: drawDen, sign: drawSign, magpie: drawMagpie, rock: drawRock, lamp: drawLamp, npc: drawHuman, player: drawPlayer, proj: drawProj, bird: drawBird };
+const DRAW = { tree: drawTree, bush: drawBush, berry: drawBerry, tent: drawTent, cooler: drawCooler, table: drawTable, fire: drawFire, mallow: drawMallow, shack: drawShack, crates: drawCrates, trash: drawTrash, cabin: drawCabin, donuts: drawDonuts, rv: drawRV, grill: drawGrill, pietable: drawPieTable, chair: drawChair, bucket: drawBucket, den: drawDen, sign: drawSign, magpie: drawMagpie, rock: drawRock, lamp: drawLamp, npc: drawHuman, player: drawPlayer, proj: drawProj, bird: drawBird, arch: drawArch, lookout: drawLookout, bench: drawBench, reeds: drawReeds, outhouse: drawOuthouse, woodpile: drawWoodpile, mapboard: drawMapboard };
 const drawList = [];
 function worldXform(c) { c.setTransform(DPR * Z, 0, 0, DPR * Z, -view.x * DPR * Z, -view.y * DPR * Z); }
 function drawBird(c, b) {
@@ -2403,7 +2679,7 @@ function render() {
   }
   drawCones(false);
   drawList.length = 0;
-  for (const s of sprites) if (s.x > x0 - 170 && s.x < x1 + 170 && s.y > y0 - 60 && s.y < y1 + 200) drawList.push(s);
+  for (const s of sprites) if (s.x > x0 - 170 && s.x < x1 + 170 && s.y > y0 - 60 && s.y < y1 + (s.tall || 200)) drawList.push(s);
   for (const n of npcs) if (!n.inside && n.x > x0 - 40 && n.x < x1 + 40 && n.y > y0 - 20 && n.y < y1 + 80) { n.sortY = n.y; drawList.push(n); }
   if (S.mode !== 'title') { P.sortY = P.bush ? P.bush.sortY - .5 : P.y; drawList.push(P); }
   for (const p of projs) drawList.push(p);
@@ -2508,6 +2784,7 @@ function updateHUD() {
     const o = P.near, press = isTouch ? 'Tap Grab' : 'Press Space', hold = isTouch ? 'Hold Grab' : 'Hold Space';
     if (o.kind === 'den') pr = `${press} to go inside your den`;
     else if (o.kind === 'magpie') pr = `${press} to trade shinies with Mags`;
+    else if (o.kind === 'lookout') pr = `${press} to climb the fire lookout`;
     else if (o.kind === 'cones') { pr = o.n > 0 ? `${press} to gather pinecones (${o.n})` : 'No pinecones left here today'; warn = o.n <= 0; }
     else { const st = lootState(o); if (st.ok) pr = P.rum ? `Rummaging the ${o.label}…` : `${hold} to rummage the ${o.label}`; else { pr = st.msg; warn = true; } }
   }
@@ -2613,7 +2890,7 @@ function endDay() {
 }
 async function caughtBy(n) {
   if (S.mode !== 'play') return;
-  S.mode = 'caught'; S.stats.shooed++; P.rum = null; P.goal = null; P.autoGrab = null; mouse.held = false; P.vx = P.vy = 0; SFX.caught(); shake(9);
+  S.mode = 'caught'; S.stats.shooed++; P.rum = null; scout = 0; P.goal = null; P.autoGrab = null; mouse.held = false; P.vx = P.vy = 0; SFX.caught(); shake(9);
   const lost = S.pouch.length;
   await fade(1, 650);
   S.pouch = []; P.x = DEN.x; P.y = DEN.y + 42; P.face = HALF;
