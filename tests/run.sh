@@ -12,6 +12,8 @@
 #   tests/run.sh sim [seeds]       Simulate a whole day (default: seeds 7, 11 and 23) and list campers who
 #                                  are very late, stuck, piled up, or walking through water or walls.
 #   tests/run.sh gaps              List trail stretches and patches of woods with no landmark in view.
+#   tests/run.sh audio [place@h]   Render the music and ambience offline at each place (or one), measure levels,
+#                                  masking, low end and key, and save a spectrogram per place to tests/out/audio.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 CHROME="${CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
@@ -60,5 +62,14 @@ case "${1:-}" in
     echo "$OUT/new/$name.png" ;;
   sim) for seed in ${2:-7 11 23}; do echo "== seed $seed"; text_report "sim&seed=$seed"; echo; done ;;
   gaps) text_report gaps ;;
-  *) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  audio)
+    rm -rf "$OUT/audio"; mkdir -p "$OUT/audio"
+    port=8766; python3 -I tests/receiver.py $port & server=$!
+    profile=$(mktemp -d)
+    "$CHROME" --headless=new --disable-gpu --mute-audio --no-first-run --user-data-dir="$profile" --remote-debugging-port=0 \
+      "http://127.0.0.1:$port/index.html?test&audio=${2:-all}" >/dev/null 2>&1 & browser=$!
+    python3 -c "import os, time; [time.sleep(.5) for _ in range(240) if not os.path.exists('$OUT/audio/done')]"
+    kill $browser $server 2>/dev/null || true; wait 2>/dev/null || true; rm -rf "$profile"
+    if [[ -f "$OUT/audio/report.txt" ]]; then cat "$OUT/audio/report.txt"; echo "Figures: $OUT/audio/*.png"; else echo "No report: open http://127.0.0.1:$port/index.html?test&audio=all with tests/receiver.py running to see the error."; fi ;;
+  *) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac

@@ -269,7 +269,7 @@ function angDiff(a, b) { let d = (b - a) % TAU; if (d > Math.PI) d -= TAU; else 
 function hash2(x, y) { let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16; return (h >>> 0) / 4294967296; }
 function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 // test mode (?test, driven by tests/run.sh): every random roll comes from a fixed seed and nothing is saved
-const TEST = (() => { try { const q = new URLSearchParams(location.search); return q.has('test') ? { seed: +q.get('seed') || 7, shot: q.get('shot'), scene: q.get('scene'), sim: q.has('sim'), gaps: q.has('gaps'), blind: false } : null; } catch (e) { return null; } })();
+const TEST = (() => { try { const q = new URLSearchParams(location.search); return q.has('test') ? { seed: +q.get('seed') || 7, shot: q.get('shot'), scene: q.get('scene'), sim: q.has('sim'), gaps: q.has('gaps'), audio: q.get('audio'), blind: false } : null; } catch (e) { return null; } })();
 if (TEST) Math.random = rng(TEST.seed);
 function inRange(h, a, b) { return a <= b ? (h >= a && h < b) : (h >= a || h < b); }
 function segDist(px, py, ax, ay, bx, by) { const dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy; const t = l ? clamp(((px - ax) * dx + (py - ay) * dy) / l, 0, 1) : 0; return Math.hypot(px - (ax + dx * t), py - (ay + dy * t)); }
@@ -1716,29 +1716,39 @@ function updateFX(dt) {
 }
 
 // ---------- audio ----------
-let AC = null, master = null, sfxBus = null, musicBus = null, ambBus = null, verb = null, noiseBuf = null, ambWind = null, ambWater = null, ambRain = null, hbT = 0;
+let AC = null, master = null, sfxBus = null, musicBus = null, musicOut = null, areaBus = null, ambBus = null, verb = null, noiseBuf = null, ambWind = null, ambWater = null, ambRain = null, hbT = 0;
 function initAudio() {
   if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
   try {
     AC = new (window.AudioContext || window.webkitAudioContext)();
-    const comp = AC.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 3; comp.connect(AC.destination);
-    master = AC.createGain(); master.connect(comp);
-    verb = AC.createConvolver(); verb.buffer = impulse(2.4);
-    const vg = AC.createGain(); vg.gain.value = .32; verb.connect(vg); vg.connect(master);
-    sfxBus = AC.createGain(); sfxBus.connect(master);
-    musicBus = AC.createGain(); musicBus.connect(master);
-    ambBus = AC.createGain(); ambBus.connect(master);
-    const ms = AC.createGain(); ms.gain.value = .55; musicBus.connect(ms); ms.connect(verb);
-    const ss = AC.createGain(); ss.gain.value = .14; sfxBus.connect(ss); ss.connect(verb);
-    applyVolumes();
-    ambWind = loopNoise(380, .5, 'lowpass'); ambWater = loopNoise(650, .7, 'bandpass'); ambRain = loopNoise(2600, .5, 'bandpass');
+    buildMixer();
     setInterval(musicTick, 50);
   } catch (e) { AC = null; }
+}
+// the mixer, on whatever context AC is (the live one, or an offline one in the audio test): buses into a shared
+// reverb and a gentle compressor. The music has two buses, the base tune and each place's instrument, so they can be measured apart.
+function buildMixer() {
+  const comp = AC.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 3; comp.connect(AC.destination);
+  master = AC.createGain(); master.connect(comp);
+  verb = AC.createConvolver(); verb.buffer = impulse(2.4);
+  const vg = AC.createGain(); vg.gain.value = .32; verb.connect(vg); vg.connect(master);
+  sfxBus = AC.createGain(); sfxBus.connect(master);
+  musicOut = AC.createGain(); musicOut.connect(master);
+  musicBus = AC.createGain(); musicBus.connect(musicOut);
+  areaBus = AC.createGain(); areaBus.connect(musicOut);
+  ambBus = AC.createGain(); ambBus.connect(master);
+  const ms = AC.createGain(); ms.gain.value = .55; musicOut.connect(ms); ms.connect(verb);
+  const ss = AC.createGain(); ss.gain.value = .14; sfxBus.connect(ss); ss.connect(verb);
+  applyVolumes();
+  ambWind = loopNoise(380, .5, 'lowpass'); ambRain = loopNoise(2600, .5, 'bandpass');
+  // water is a low rush plus a high sparkle, with the middle left open for the music (the audio test flagged a mid-band roar)
+  ambWater = AC.createGain(); ambWater.gain.value = 0; ambWater.connect(ambBus);
+  loopNoise(190, .6, 'lowpass', ambWater, .85); loopNoise(3800, 1.3, 'bandpass', ambWater, .3);
 }
 function applyVolumes() {
   if (!AC) return;
   master.gain.setTargetAtTime(muted ? 0 : .85, AC.currentTime, .05);
-  sfxBus.gain.value = S.vol.sfx; musicBus.gain.value = S.vol.music * .5; ambBus.gain.value = S.vol.sfx * .8;
+  sfxBus.gain.value = S.vol.sfx; musicOut.gain.value = S.vol.music * .5; ambBus.gain.value = S.vol.sfx * .8;
 }
 function impulse(sec) {
   const n = Math.floor(AC.sampleRate * sec), b = AC.createBuffer(2, n, AC.sampleRate);
@@ -1749,10 +1759,10 @@ function noiseBuffer() {
   if (!noiseBuf) { noiseBuf = AC.createBuffer(1, AC.sampleRate * 2, AC.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
   return noiseBuf;
 }
-function loopNoise(freq, q, type) {
+function loopNoise(freq, q, type, dest = ambBus, vol = 0) {
   const s = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
-  s.buffer = noiseBuffer(); s.loop = true; f.type = type; f.frequency.value = freq; f.Q.value = q; g.gain.value = 0;
-  s.connect(f); f.connect(g); g.connect(ambBus); s.start(); return g;
+  s.buffer = noiseBuffer(); s.loop = true; f.type = type; f.frequency.value = freq; f.Q.value = q; g.gain.value = vol;
+  s.connect(f); f.connect(g); g.connect(dest); s.start(); return g;
 }
 // music: Karplus-Strong plucks, bells and a little drum kit, scheduled ahead on the audio clock
 const midiHz = m => 440 * Math.pow(2, (m - 69) / 12);
@@ -1797,15 +1807,21 @@ const MUSIC = {
 const MUS = { next: 0, step: 0, mode: 'day', mel: 3, aw: {} };
 // each of these places brings in its own instrument as you get near, over whatever the day or night music is playing
 const AREA_TUNES = { den: 'hum', pond: 'drops', mill: 'banjo', falls: 'pad' };
+let noteLog = null;   // the audio test collects the place instruments' notes here to check them against the key
 function areaLayer(t, s, bar, root, ch, scale) {
+  const base = musicBus; musicBus = areaBus;   // everything below plays on the place-instrument bus
+  try { areaNotes(t, s, bar, root, ch, scale); } finally { musicBus = base; }
+}
+function areaNotes(t, s, bar, root, ch, scale) {
+  const log = (kind, ...ms) => { if (noteLog) for (const m of ms) noteLog.push({ kind, m, root, t }); };
   for (const id in AREA_TUNES) {
     const a = AREAS.find(q => q.id === id), want = S.mode === 'play' ? clamp(1.25 - dist(P.x, P.y, a.x, a.y) / a.r, 0, 1) : 0;
     const w = MUS.aw[id] = (MUS.aw[id] || 0) + (want - (MUS.aw[id] || 0)) * .12; if (w < .03) continue;
     const kind = AREA_TUNES[id];
-    if (kind === 'hum' && s === 0) { mtone(midiHz(root - 24), t, 2.6, 'sine', .1 * w); mtone(midiHz(root - 17), t + .05, 2.4, 'sine', .05 * w); }              // the den: a low, warm hum
-    else if (kind === 'drops' && s % 2 === 1 && Math.random() < .45) bell(scale[Math.floor(Math.random() * scale.length)] + 12, t, .05 * w, .45);   // the pond: drips like water off a paddle
-    else if (kind === 'banjo' && (s === 0 || s === 1 || s === 2 || s === 4 || s === 5)) pluck(root + 24 + ch[[0, 1, 2, 0, 0, 2, 1, 0][s]], t, .11 * w, .45);   // the mill: a slow banjo roll
-    else if (kind === 'pad' && s === 0 && bar % 2 === 0) for (const [iv, v] of [[12, .045], [19, .03], [24 + ch[1] % 12, .022]]) mtone(midiHz(root + iv), t, 4.2, 'triangle', v * w);   // the falls: an airy pad
+    if (kind === 'hum' && s === 0) { mtone(midiHz(root), t, 2.7, 'triangle', .2 * w); mtone(midiHz(root + 7), t + .06, 2.5, 'sine', .095 * w); mtone(midiHz(root - 12), t, 2.7, 'sine', .03 * w); log(kind, root, root + 7, root - 12); }   // a soft organ drone, pitched where small speakers can play it              // the den: a low, warm hum
+    else if (kind === 'drops' && s % 2 === 1 && Math.random() < .45) { const m = scale[Math.floor(Math.random() * scale.length)] + 12; bell(m, t, .15 * w, .5); log(kind, m); }   // the pond: drips like water off a paddle
+    else if (kind === 'banjo' && (s === 0 || s === 1 || s === 2 || s === 4 || s === 5)) { const m = root + 24 + ch[[0, 1, 2, 0, 0, 2, 1, 0][s]]; pluck(m, t, .34 * w, .45); log(kind, m); }   // the mill: a slow banjo roll
+    else if (kind === 'pad' && s === 0 && bar % 2 === 0) for (const [iv, v] of [[12, .07], [19, .048], [24 + ch[1] % 12, .035]]) { mtone(midiHz(root + iv), t, 4.2, 'triangle', v * w); log(kind, root + iv); }   // the falls: an airy pad
   }
 }
 function wantedMusic() {
@@ -1830,7 +1846,7 @@ function musicTick() {
 function melody(t, spec, kind) {
   MUS.mel = clamp(MUS.mel + pick([-2, -1, -1, 0, 1, 1, 2]), 0, spec.scale.length - 1);
   const n = spec.scale[MUS.mel];
-  if (kind === 'bell') bell(n, t, .045, 2.2); else pluck(n, t, .16, rand(-.4, .4));
+  if (kind === 'bell') bell(n, t, .056, 2.2); else pluck(n, t, .16, rand(-.4, .4));
 }
 function playStep(t, spec) {
   const s = MUS.step % 8, bar = Math.floor(MUS.step / 8), [root, minor] = spec.prog[bar % 4], ch = minor ? [0, 3, 7, 12, 15] : [0, 4, 7, 12, 16], m = MUS.mode;
@@ -1843,8 +1859,8 @@ function playStep(t, spec) {
     return;
   }
   if (spec === MUSIC.night) {
-    if (s % 2 === 0) bell(root + 12 + ch[[0, 2, 1, 3][s / 2]], t, .065);
-    if (s === 0) pluck(root - 12, t, .3, 0);
+    if (s % 2 === 0) bell(root + 12 + ch[[0, 2, 1, 3][s / 2]], t, .08);
+    if (s === 0) pluck(root - 12, t, .36, 0);
     if (s % 2 === 1 && bar % 4 !== 3 && Math.random() < .3) melody(t, spec, 'bell');
   } else {
     const pat = [0, 2, 1, 2, 3, 2, 1, 4];
@@ -1858,13 +1874,17 @@ function playStep(t, spec) {
     mnoise(t, .02, .05, 6500, 3);
   }
 }
+// how loud the water is where Bramble stands: the lake shore, the creek and pond, and the falls, which you hear before you see
+function waterLevel() {
+  const ex = (P.x - LAKE.x) / LAKE.rx, ey = (P.y - LAKE.y) / LAKE.ry, edge = Math.max(0, (Math.hypot(ex, ey) - 1) * LAKE.ry);
+  const brook = clamp(1 - (Math.min(creekDist(P.x, P.y), inPond(P.x, P.y, -140) ? 0 : 999) - 20) / 260, 0, 1);
+  return Math.max(.13 * clamp(1 - edge / 380, 0, 1), .1 * brook, .15 * clamp(1 - dist(P.x, P.y, FALLS.x, FALLS.y) / 700, 0, 1) ** 1.6);
+}
 function updateAudio(dt) {
   if (!AC || !ambWind) return;
   const t = AC.currentTime, playing = S.mode === 'play' || S.mode === 'caught';
   ambWind.gain.setTargetAtTime(.05 + .03 * Math.sin(time * .23) + .02 * Math.sin(time * .61), t, .3);
-  const ex = (P.x - LAKE.x) / LAKE.rx, ey = (P.y - LAKE.y) / LAKE.ry, edge = Math.max(0, (Math.hypot(ex, ey) - 1) * LAKE.ry);
-  const brook = clamp(1 - (Math.min(creekDist(P.x, P.y), inPond(P.x, P.y, -140) ? 0 : 999) - 20) / 260, 0, 1);
-  ambWater.gain.setTargetAtTime(playing ? Math.max(.16 * clamp(1 - edge / 380, 0, 1), .13 * brook, .3 * clamp(1 - dist(P.x, P.y, FALLS.x, FALLS.y) / 700, 0, 1) ** 1.6) : 0, t, .3);   // you hear the falls before you see them
+  ambWater.gain.setTargetAtTime(playing ? waterLevel() : 0, t, .3);
   ambRain.gain.setTargetAtTime(raining() ? .13 : 0, t, .6);
   if (!playing) return;
   if (isFireLit(S.hour)) { const d = dist(P.x, P.y, FIRE.x, FIRE.y); if (d < 520 && Math.random() < dt * 10) noise(.03, .16 * (1 - d / 520), rand(1500, 4200), 2); }
@@ -4372,8 +4392,151 @@ function testGaps() {
   for (const b of blobs.slice(0, 6)) out.push(`  ${String(Math.round(b.n * G * G / 10000)).padStart(4)} (100 px)² around ${Math.round(b.cx)},${Math.round(b.cy)}`);
   report(out);
 }
+// ?test&audio=all (or audio=mill@10): render the music and ambience offline at each place as four stems (everything,
+// the base tune, the place's instrument, the ambience), measure them, draw a spectrogram and level plot for each place,
+// and POST the figures and a report to tests/receiver.py. Run it with tests/run.sh audio.
+const SOUND_SCENES = [
+  { id: 'camp', h: 10, what: 'control: the day tune, no place instrument' },
+  { id: 'den', h: 10, what: 'the den hum under the day tune' },
+  { id: 'den', h: 22, what: 'the den hum under the night tune' },
+  { id: 'pond', h: 11, what: 'water-drop bells by day' },
+  { id: 'pond', h: 21.5, what: 'water-drop bells by night' },
+  { id: 'mill', h: 10, what: 'the banjo roll' },
+  { id: 'falls', h: 11, what: 'the airy pad against the falls roar' },
+  { id: 'falls', h: 21.5, what: 'the pad and the roar at night' },
+];
+const SR = 44100, CLIP = 20, STEADY = 9, FFT_N = 2048, HOP = 1024;   // seconds rendered; place instruments take ~7 s to fade in, so measure from 9 s
+const KEYS = { day: [5, 7, 9, 10, 0, 2, 4], night: [0, 2, 4, 5, 7, 9, 11] };   // F major by day, C major by night
+const dB = v => 10 * Math.log10(v + 1e-12);
+// A-weighting: how loud each frequency sounds to people (a 50 Hz hum counts for far less than its raw energy)
+const AW = (() => { const ra = f => { const f2 = f * f; return 12194 ** 2 * f2 * f2 / ((f2 + 20.6 ** 2) * Math.sqrt((f2 + 107.7 ** 2) * (f2 + 737.9 ** 2)) * (f2 + 12194 ** 2)); }, r1k = ra(1000); return Float32Array.from({ length: FFT_N / 2 }, (_, k) => (ra(Math.max(1, k * SR / FFT_N)) / r1k) ** 2); })();
+async function renderStem(mix) {
+  Math.random = rng(TEST.seed); for (const k in pluckCache) delete pluckCache[k]; noiseBuf = null;   // same notes in every stem
+  AC = new OfflineAudioContext(2, SR * CLIP, SR); buildMixer();
+  musicBus.gain.value = mix.base; areaBus.gain.value = mix.area; ambBus.gain.value *= mix.amb;
+  ambWind.gain.value = .05; ambWater.gain.value = waterLevel(); ambRain.gain.value = 0;
+  Object.assign(MUS, { next: .05, step: 0, mode: dark > .45 ? 'night' : 'day', mel: 3, aw: {} });
+  const spec = MUSIC[MUS.mode];
+  while (MUS.next < CLIP - 1.5) { playStep(MUS.next, spec); MUS.next += 60 / spec.bpm / 2; MUS.step++; }
+  const buf = await AC.startRendering(), L = buf.getChannelData(0), R = buf.getChannelData(1), mono = new Float32Array(L.length);
+  let peak = 0, clips = 0;
+  for (let i = 0; i < L.length; i++) { mono[i] = (L[i] + R[i]) / 2; const a = Math.max(Math.abs(L[i]), Math.abs(R[i])); if (a > peak) peak = a; if (a > 1) clips++; }
+  const frames = spectrum(mono);
+  return { mono, peak, clips, frames, rms: rmsFrom(mono, STEADY), heard: heardLevel(frames), bands: bandsOf(frames), env: envelope(mono) };
+}
+function fft(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) { let bit = n >> 1; for (; j & bit; bit >>= 1) j ^= bit; j ^= bit; if (i < j) { let q = re[i]; re[i] = re[j]; re[j] = q; q = im[i]; im[i] = im[j]; im[j] = q; } }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang), h = len >> 1;
+    for (let i = 0; i < n; i += len) {
+      let cr = 1, ci = 0;
+      for (let k = 0; k < h; k++) {
+        const a = i + k, b = a + h, vr = re[b] * cr - im[b] * ci, vi = re[b] * ci + im[b] * cr;
+        re[b] = re[a] - vr; im[b] = im[a] - vi; re[a] += vr; im[a] += vi;
+        const nr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = nr;
+      }
+    }
+  }
+}
+function spectrum(mono) {   // power per frequency bin per frame, Hann-windowed
+  const win = Float64Array.from({ length: FFT_N }, (_, i) => .5 - .5 * Math.cos(TAU * i / (FFT_N - 1))), re = new Float64Array(FFT_N), im = new Float64Array(FFT_N), frames = [];
+  for (let s0 = 0; s0 + FFT_N <= mono.length; s0 += HOP) {
+    for (let i = 0; i < FFT_N; i++) { re[i] = mono[s0 + i] * win[i]; im[i] = 0; }
+    fft(re, im); const p = new Float32Array(FFT_N / 2); for (let k = 0; k < p.length; k++) p[k] = (re[k] * re[k] + im[k] * im[k]) / (FFT_N * FFT_N); frames.push(p);
+  }
+  return frames;
+}
+function heardLevel(frames) { const f0 = Math.floor(STEADY * SR / HOP); let e = 0, n = 0; for (let i = f0; i < frames.length; i++, n++) { const p = frames[i]; for (let k = 1; k < p.length; k++) e += p[k] * AW[k]; } return dB(e / n); }
+// how much of the tune is covered: the share of its audible energy in frequencies where the ambience is louder than it
+function coveredShare(tune, amb) {
+  const f0 = Math.floor(STEADY * SR / HOP), n = tune.frames.length - f0; let all = 0, hid = 0;
+  for (let k = 1; k < FFT_N / 2; k++) {
+    let t = 0, a = 0; for (let i = f0; i < tune.frames.length; i++) { t += tune.frames[i][k]; a += amb.frames[i][k]; }
+    all += t * AW[k]; if (a > t) hid += t * AW[k];
+  }
+  return n > 0 && all > 0 ? hid / all : 0;
+}
+function rmsFrom(mono, from) { const a = Math.floor(from * SR); let s = 0; for (let i = a; i < mono.length; i++) s += mono[i] * mono[i]; return dB(s / (mono.length - a)); }
+function bandsOf(frames) {   // low (<150 Hz), mid (150 Hz–2 kHz) and high energy over the steady part
+  const f0 = Math.floor(STEADY * SR / HOP); let lo = 0, mid = 0, hi = 0, n = 0;
+  for (let i = f0; i < frames.length; i++, n++) { const p = frames[i]; for (let k = 1; k < p.length; k++) { const hz = k * SR / FFT_N; if (hz < 150) lo += p[k]; else if (hz < 2000) mid += p[k]; else hi += p[k]; } }
+  return { lo: dB(lo / n), mid: dB(mid / n), hi: dB(hi / n), loShare: lo / (lo + mid + hi + 1e-12) };
+}
+function envelope(mono) { const w = SR / 10, out = []; for (let i = 0; i + w <= mono.length; i += w) { let s = 0; for (let j = i; j < i + w; j++) s += mono[j] * mono[j]; out.push(dB(s / w)); } return out; }
+const MAGMA = [[0, 0, 4], [59, 15, 112], [140, 41, 129], [222, 73, 104], [254, 159, 109], [252, 253, 191]];
+function magma(v) { v = clamp(v, 0, 1) * (MAGMA.length - 1); const i = Math.min(MAGMA.length - 2, Math.floor(v)), t = v - i, a = MAGMA[i], b = MAGMA[i + 1]; return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+function soundFigure(title, verdict, stems) {
+  const W2 = 1100, H2 = 560, fig = document.createElement('canvas'); fig.width = W2; fig.height = H2;
+  const c = fig.getContext('2d'), sx = 64, sy = 44, sw = 1016, sh = 300, fmin = 40, fmax = 10000;
+  c.fillStyle = '#121214'; c.fillRect(0, 0, W2, H2);
+  c.fillStyle = '#eee'; c.font = '600 16px system-ui, sans-serif'; c.fillText(title, 16, 26);
+  const fr = stems.full.frames, img = c.createImageData(sw, sh); let top = -200;
+  for (const p of fr) for (let k = 1; k < p.length; k++) top = Math.max(top, dB(p[k]));
+  const yOf = f => sy + sh * (1 - Math.log(f / fmin) / Math.log(fmax / fmin));
+  for (let x = 0; x < sw; x++) {
+    const p = fr[Math.min(fr.length - 1, Math.floor(x / sw * fr.length))];
+    for (let y = 0; y < sh; y++) {
+      const f = fmin * Math.pow(fmax / fmin, 1 - y / sh), k = Math.max(1, Math.round(f * FFT_N / SR)), [r, g, b] = magma((dB(p[k]) - (top - 60)) / 60), o = (y * sw + x) * 4;
+      img.data[o] = r; img.data[o + 1] = g; img.data[o + 2] = b; img.data[o + 3] = 255;
+    }
+  }
+  c.putImageData(img, sx, sy);
+  c.font = '11px system-ui, sans-serif'; c.textAlign = 'right';
+  for (let o = 2; o <= 8; o++) { const f = 32.703 * 2 ** (o - 1), y = yOf(f); if (y < sy || y > sy + sh) continue; c.fillStyle = 'rgba(255,255,255,.18)'; c.fillRect(sx, y, sw, 1); c.fillStyle = '#aaa'; c.fillText('C' + o, sx - 6, y + 4); }
+  c.textAlign = 'left'; const tx = t => sx + t / CLIP * sw;
+  c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(tx(STEADY), sy, 1, sh + 170); c.fillStyle = '#aaa'; c.fillText('measured from here →', tx(STEADY) + 4, sy + sh + 14);
+  for (let t = 0; t <= CLIP; t += 5) { c.fillStyle = '#888'; c.fillText(t + ' s', tx(t) - 8, sy + sh + 28); }
+  const ey = sy + sh + 40, eh = 130, yDb = v => ey + eh * (1 - (clamp(v, -70, -10) + 70) / 60);
+  for (const v of [-60, -40, -20]) { c.fillStyle = 'rgba(255,255,255,.12)'; c.fillRect(sx, yDb(v), sw, 1); c.fillStyle = '#888'; c.textAlign = 'right'; c.fillText(v + ' dB', sx - 6, yDb(v) + 4); }
+  c.textAlign = 'left';
+  const lines = [['full', '#ffffff', 'everything', 1], ['base', '#7fc8ff', 'base tune', 2], ['area', '#ffb347', 'place instrument', 2], ['amb', '#a8a8a8', 'ambience', 2]];
+  lines.forEach(([k, col, name, w], i) => {
+    const env = stems[k].env; c.strokeStyle = col; c.lineWidth = w; c.beginPath(); env.forEach((v, j) => { const x = sx + j / env.length * sw, y = yDb(v); j ? c.lineTo(x, y) : c.moveTo(x, y); }); c.stroke();
+    c.fillStyle = col; c.fillRect(sx + 10 + i * 170, ey + eh + 18, 14, 3); c.fillStyle = '#ccc'; c.fillText(name, sx + 30 + i * 170, ey + eh + 23);
+  });
+  c.fillStyle = verdict.startsWith('ok') ? '#9be29b' : '#ffb0a0'; c.font = '600 13px system-ui, sans-serif'; c.fillText(verdict, sx, H2 - 10);
+  return fig;
+}
+async function testAudio(spec) {
+  const scenes = spec === 'all' ? SOUND_SCENES : SOUND_SCENES.filter(q => `${q.id}@${q.h}` === spec || q.id === spec);
+  const out = [], post = (name, body) => fetch('/save?name=' + encodeURIComponent(name), { method: 'POST', body }).catch(() => {});
+  S.mode = 'play'; TEST.blind = true; let control = null;
+  out.push('Offline render of the music and ambience, 20 s per place, measured from 9 s once place instruments have faded in.', '');
+  for (const sc of scenes) {
+    const a = AREAS.find(q => q.id === sc.id); S.hour = sc.h; dark = darkAt(sc.h);
+    const f = nearestFree(cellOf(a.x), rowOf(a.y + 40)); P.x = f[0] * CELL + 16; P.y = f[1] * CELL + 16;
+    noteLog = []; const full = await renderStem({ base: 1, area: 1, amb: 1 }); const notes = noteLog; noteLog = null;
+    const stems = { full, base: await renderStem({ base: 1, area: 0, amb: 0 }), area: await renderStem({ base: 0, area: 1, amb: 0 }), amb: await renderStem({ base: 0, area: 0, amb: 1 }) };
+    const tune = dark > .45 ? 'night' : 'day', key = KEYS[tune], off = notes.filter(n => !key.includes(((n.m % 12) + 12) % 12));
+    if (!control) control = full.bands.loShare;
+    const rel = stems.area.heard - stems.base.heard, mask = stems.amb.bands.mid - stems.base.bands.mid, covered = coveredShare(stems.base, stems.amb), lowUp = (full.bands.loShare - control) * 100;
+    const flags = [];
+    if (full.clips) flags.push(`clips ${full.clips} samples`);
+    if (stems.amb.heard - stems.base.heard > 0) flags.push(`ambience louder than the tune (${(stems.amb.heard - stems.base.heard).toFixed(1)} dB)`);
+    if (notes.length && rel < -16) flags.push(`instrument buried (${rel.toFixed(1)} dB under the tune)`);
+    if (notes.length && rel > -3) flags.push(`instrument too loud (${rel.toFixed(1)} dB against the tune)`);
+    if (covered > .2) flags.push(`ambience covers ${(covered * 100).toFixed(0)}% of the tune`);
+    if (lowUp > 15) flags.push(`low end ${lowUp.toFixed(0)} points heavier than the control`);
+    if (off.length) flags.push(`${off.length} place notes outside the key`);
+    const verdict = flags.length ? 'check: ' + flags.join('; ') : 'ok: nothing flagged';
+    const name = `${a.name} at ${clockStr(sc.h)} (${tune} tune): ${sc.what}`;
+    out.push(name,
+      `  everything ${full.rms.toFixed(1)} dBFS, peak ${dB(full.peak * full.peak).toFixed(1)} dBFS, ${full.clips} clipped samples`,
+      `  as heard (A-weighted): base tune ${stems.base.heard.toFixed(1)} · place instrument ${notes.length ? stems.area.heard.toFixed(1) + ` (${rel >= 0 ? '+' : ''}${rel.toFixed(1)} dB vs the tune)` : 'none'} · ambience ${stems.amb.heard.toFixed(1)} (${(stems.amb.heard - stems.base.heard >= 0 ? '+' : '')}${(stems.amb.heard - stems.base.heard).toFixed(1)} dB vs the tune)`,
+      `  bands low/mid/high (dB): tune ${[stems.base.bands.lo, stems.base.bands.mid, stems.base.bands.hi].map(v => v.toFixed(0)).join('/')} · instrument ${[stems.area.bands.lo, stems.area.bands.mid, stems.area.bands.hi].map(v => v.toFixed(0)).join('/')} · ambience ${[stems.amb.bands.lo, stems.amb.bands.mid, stems.amb.bands.hi].map(v => v.toFixed(0)).join('/')}`,
+      `  below 150 Hz: ${(full.bands.loShare * 100).toFixed(0)}% of the energy (control ${(control * 100).toFixed(0)}%) · ambience vs tune in the mids: ${mask.toFixed(1)} dB · tune covered by ambience: ${(covered * 100).toFixed(0)}%`,
+      `  place notes: ${notes.length}${notes.length ? `, ${off.length ? off.length + ' outside' : 'all in'} ${tune === 'day' ? 'F' : 'C'} major` : ''}`,
+      '  ' + verdict, '');
+    const fig = soundFigure(name, verdict, stems);
+    await post(`${sc.id}@${sc.h}.png`, await new Promise(r => fig.toBlob(r)));
+  }
+  await post('report.txt', out.join('\n')); await post('done', 'ok');
+  report(out);
+}
 function runTest() {
   resetState(); S.tut = TUT.length; S.goals = []; tutT = 99;
+  if (TEST.audio) { document.body.classList.add('testing'); testAudio(TEST.audio); return; }
   if (TEST.shot || TEST.sim || TEST.gaps) {
     document.body.classList.add('testing');
     if (TEST.shot) testShot(TEST.shot); else if (TEST.sim) testSim(); else testGaps();
